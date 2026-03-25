@@ -3,15 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ShoppingCart, User, Menu } from "lucide-react";
-import { useCartStore } from "@/store/cartStore";
+import { useCart } from "@/context/CartContext";
 
 export default function Navbar() {
-  const [mounted, setMounted] = useState(false);
-  const totalItems = useCartStore((state) => state.getTotalItems());
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const { totalItems, isHydrated } = useCart();
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-brand-bg/80 backdrop-blur-md border-b border-brand-primary/10">
@@ -36,7 +31,7 @@ export default function Navbar() {
             <Link href="/cart" className="p-2 hover:bg-brand-primary/5 rounded-full transition-colors relative">
               <ShoppingCart size={20} className="text-brand-secondary" />
               <span className="absolute top-0 right-0 h-4 w-4 bg-brand-accent text-white text-[10px] flex items-center justify-center rounded-full">
-                {mounted ? totalItems : 0}
+                {isHydrated ? totalItems : 0}
               </span>
             </Link>
             <button className="md:hidden p-2 hover:bg-brand-primary/5 rounded-full transition-colors">

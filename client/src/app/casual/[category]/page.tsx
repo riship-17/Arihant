@@ -12,16 +12,16 @@ import { useParams } from "next/navigation";
 function CategoryContent() {
   const params = useParams();
   const category = params.category as string;
-  const [products, setProducts] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchItems = async () => {
       try {
-        const res = await api.get("/products", {
-          params: { baseCategory: 'casual', category: category }
+        const res = await api.get("/uniform-items", {
+          params: { itemType: category }
         });
-        setProducts(res.data);
+        setItems(res.data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -29,7 +29,7 @@ function CategoryContent() {
       }
     };
     if (category) {
-      fetchProducts();
+      fetchItems();
     }
   }, [category]);
 
@@ -42,7 +42,7 @@ function CategoryContent() {
           <h1 className="text-3xl font-heading text-brand-secondary">
             {displayCategory}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Found {products.length} products</p>
+          <p className="text-sm text-gray-500 mt-1">Found {items.length} items</p>
         </div>
         <button className="flex items-center gap-2 px-6 py-3 bg-white border border-brand-primary/10 rounded-2xl text-sm font-bold shadow-lg shadow-black/5 hover:bg-brand-primary/5 transition-all">
           <Filter size={18} /> Filters
@@ -60,15 +60,15 @@ function CategoryContent() {
             </div>
           ))}
         </div>
-      ) : products.length > 0 ? (
+      ) : items.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {products.map((p) => (
+          {items.map((p) => (
             <ProductCard key={p._id} product={p} />
           ))}
         </div>
       ) : (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-          <p className="text-gray-500">No products found for {displayCategory}.</p>
+          <p className="text-gray-500">No items found for {displayCategory}.</p>
         </div>
       )}
     </div>

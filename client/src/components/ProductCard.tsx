@@ -12,8 +12,8 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div className="relative aspect-[4/5] bg-brand-bg/20 overflow-hidden">
         {/* Product Image */}
         <img 
-          src={product.images?.[0] || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"} 
-          alt={product.name}
+          src={product.imageUrl || product.images?.[0] || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"} 
+          alt={product.itemName || product.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"; }}
         />
@@ -30,23 +30,18 @@ export default function ProductCard({ product }: ProductCardProps) {
             <ShoppingCart size={20} />
           </button>
         </div>
-        
-        {/* Badge */}
-        {product.isBundle && (
-          <div className="absolute top-4 left-4 px-3 py-1 bg-brand-accent text-white text-[10px] uppercase font-bold tracking-widest rounded-full">
-            Bundle Offer
-          </div>
-        )}
       </div>
       
       <div className="p-6">
         <div className="text-[10px] uppercase tracking-widest text-brand-primary font-bold mb-1 opacity-70">
-          {product.category}
+          {product.itemType || product.category}
         </div>
-        <h3 className="text-lg font-heading text-brand-secondary mb-2 line-clamp-1">{product.name}</h3>
+        <h3 className="text-lg font-heading text-brand-secondary mb-2 line-clamp-1">{product.itemName || product.name}</h3>
         <div className="flex justify-between items-center">
           <div className="text-xl font-bold text-brand-primary">₹{product.price}</div>
-          <div className="text-xs text-gray-400">Class {product.classRange}</div>
+          {product.standard?.className && (
+            <div className="text-xs text-gray-400">{product.standard.className}</div>
+          )}
         </div>
       </div>
     </div>

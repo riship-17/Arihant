@@ -7,50 +7,49 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
 import api from "@/lib/api";
-import { Filter, SlidersHorizontal } from "lucide-react";
+import { Filter } from "lucide-react";
 
 function ProductsContent() {
   const searchParams = useSearchParams();
-  const [products, setProducts] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchItems = async () => {
       try {
-        const school = searchParams.get("school");
-        const classRange = searchParams.get("class");
-        const gender = searchParams.get("gender");
+        const standard = searchParams.get("standard");
+        const itemType = searchParams.get("itemType");
         
-        const res = await api.get("/products", {
-          params: { school, classRange, gender }
+        const res = await api.get("/uniform-items", {
+          params: { standard, itemType }
         });
-        setProducts(res.data);
+        setItems(res.data);
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    fetchProducts();
+    fetchItems();
   }, [searchParams]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           {/* School Header */}
-          {products.length > 0 && products[0].school && (
+          {items.length > 0 && items[0].standard?.school && (
             <div className="mb-12 relative h-48 sm:h-64 rounded-[40px] overflow-hidden shadow-2xl shadow-brand-primary/10 group">
               <img 
-                src={products[0].school.banner || "https://images.unsplash.com/photo-1523050853063-8802a8358445?auto=format&fit=crop&q=80&w=2000"} 
+                src={items[0].standard.school.banner || "https://images.unsplash.com/photo-1523050853063-8802a8358445?auto=format&fit=crop&q=80&w=2000"} 
                 alt="School Banner" 
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1523050853063-8802a8358445?auto=format&fit=crop&q=80&w=2000"; }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-8">
                 <div className="flex items-center gap-6">
-                  {products[0].school.logo && (
+                  {items[0].standard.school.logo && (
                     <div className="w-20 h-20 bg-white rounded-3xl p-3 flex items-center justify-center shadow-2xl transform -rotate-3">
                       <img 
-                        src={products[0].school.logo} 
+                        src={items[0].standard.school.logo} 
                         alt="Logo" 
                         className="max-w-full max-h-full object-contain"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -58,7 +57,7 @@ function ProductsContent() {
                     </div>
                   )}
                   <div>
-                    <h1 className="text-3xl sm:text-5xl font-heading text-white drop-shadow-lg">{products[0].school.name}</h1>
+                    <h1 className="text-3xl sm:text-5xl font-heading text-white drop-shadow-lg">{items[0].standard.school.name}</h1>
                     <p className="text-white/80 font-medium tracking-wide mt-2">Official School Uniform Collection</p>
                   </div>
                 </div>
@@ -69,9 +68,9 @@ function ProductsContent() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
             <div>
               <h1 className="text-3xl font-heading text-brand-secondary">
-                {products.length > 0 && products[0].school ? "Uniform Catalog" : "All Uniforms"}
+                {items.length > 0 && items[0].standard?.school ? "Uniform Catalog" : "All Uniforms"}
               </h1>
-              <p className="text-sm text-gray-500 mt-1">Found {products.length} products matching your selection</p>
+              <p className="text-sm text-gray-500 mt-1">Found {items.length} items matching your selection</p>
             </div>
             <button className="flex items-center gap-2 px-6 py-3 bg-white border border-brand-primary/10 rounded-2xl text-sm font-bold shadow-lg shadow-black/5 hover:bg-brand-primary/5 transition-all">
               <Filter size={18} /> Filters
@@ -89,15 +88,15 @@ function ProductsContent() {
             </div>
           ))}
         </div>
-      ) : products.length > 0 ? (
+      ) : items.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {products.map((p) => (
+          {items.map((p) => (
             <ProductCard key={p._id} product={p} />
           ))}
         </div>
       ) : (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-          <p className="text-gray-500">No products found for this selection.</p>
+          <p className="text-gray-500">No uniform items found for this selection.</p>
         </div>
       )}
     </div>

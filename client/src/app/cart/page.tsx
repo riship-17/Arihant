@@ -1,21 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Plus, Minus, ArrowRight, ShoppingBag, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useCartStore } from "@/store/cartStore";
+import { useCart } from "@/context/CartContext";
 
 export default function CartPage() {
-  const { items: cartItems, updateQuantity, removeFromCart, getSubtotal, getTotalItems } = useCartStore();
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    // eslint-disable-next-line
-    setIsHydrated(true);
-  }, []);
+  const { items: cartItems, updateQuantity, removeFromCart, totalPrice, totalItems, isHydrated } = useCart();
 
   if (!isHydrated) {
     return (
@@ -28,9 +21,6 @@ export default function CartPage() {
       </div>
     );
   }
-
-  const subtotal = getSubtotal();
-  const totalItems = getTotalItems();
 
   return (
     <div className="min-h-screen flex flex-col bg-brand-bg/10">
@@ -45,22 +35,22 @@ export default function CartPage() {
               {/* Items List */}
               <div className="lg:col-span-2 space-y-4">
                 {cartItems.map((item, idx) => (
-                  <div key={`${item.productId}-${item.size}-${idx}`} className="bg-white p-6 rounded-3xl border border-brand-primary/5 flex flex-col sm:flex-row gap-6 items-center">
+                  <div key={`${item.item_id}-${item.selected_size}-${idx}`} className="bg-white p-6 rounded-3xl border border-brand-primary/5 flex flex-col sm:flex-row gap-6 items-center">
                     <div className="w-24 h-24 bg-gray-50 rounded-2xl flex-shrink-0 flex items-center justify-center overflow-hidden">
-                      <img src={item.image || 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80'} className="w-full h-full object-contain mix-blend-multiply" alt="Product" />
+                      <img src={item.image_url || 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80'} className="w-full h-full object-contain mix-blend-multiply" alt="Product" />
                     </div>
                     <div className="flex-grow w-full">
                       <div className="flex justify-between items-start">
                          <div>
-                            <h3 className="font-heading text-brand-secondary text-lg">{item.name || "Product"}</h3>
+                            <h3 className="font-heading text-brand-secondary text-lg">{item.item_name || "Product"}</h3>
                             <div className="flex items-center gap-2 mt-1">
-                               {item.isKitItem && (
+                               {item.is_kit_item && (
                                   <span className="px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded text-xs font-bold">Uniform Kit</span>
                                )}
-                               {!item.isKitItem && (
-                                  <span className="px-2 py-0.5 bg-brand-secondary/10 text-brand-secondary rounded text-xs font-bold">Casual</span>
+                               {!item.is_kit_item && (
+                                  <span className="px-2 py-0.5 bg-brand-secondary/10 text-brand-secondary rounded text-xs font-bold capitalize">{item.item_type}</span>
                                )}
-                               <span className="text-sm text-gray-500">Size: {item.size}</span>
+                               <span className="text-sm text-gray-500">Size: {item.selected_size}</span>
                             </div>
                          </div>
                          <div className="font-bold text-lg text-brand-primary">₹{item.price * item.quantity}</div>
@@ -68,12 +58,12 @@ export default function CartPage() {
                       
                       <div className="mt-6 flex items-center justify-between">
                         <div className="flex items-center bg-gray-100 rounded-xl p-1">
-                          <button onClick={() => updateQuantity(item.productId, item.size, item.quantity - 1)} className="p-1 hover:bg-white rounded-lg transition-all"><Minus size={14} /></button>
-                          <span className="w-10 text-center text-sm font-bold">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.productId, item.size, item.quantity + 1)} className="p-1 hover:bg-white rounded-lg transition-all"><Plus size={14} /></button>
+                          <button onClick={() => updateQuantity(item.item_id, item.selected_size, item.quantity - 1)} className="p-1 hover:bg-white rounded-lg transition-all"><Minus size={14} /></button>
+                          <span className="w-10 text-center text-sm font-bold tabular-nums">{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.item_id, item.selected_size, item.quantity + 1)} className="p-1 hover:bg-white rounded-lg transition-all"><Plus size={14} /></button>
                         </div>
                         <button 
-                          onClick={() => removeFromCart(item.productId, item.size)}
+                          onClick={() => removeFromCart(item.item_id, item.selected_size)}
                           className="flex items-center gap-2 px-3 py-2 text-red-500 hover:bg-red-50 rounded-xl transition-all text-sm font-semibold"
                         >
                           <Trash2 size={16} /> Remove
@@ -91,7 +81,7 @@ export default function CartPage() {
                   <div className="space-y-4 mb-8">
                     <div className="flex justify-between text-gray-600">
                       <span>Subtotal ({totalItems} items)</span>
-                      <span className="font-medium">₹{subtotal}</span>
+                      <span className="font-medium">₹{totalPrice.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Shipping</span>
@@ -99,7 +89,7 @@ export default function CartPage() {
                     </div>
                     <div className="border-t border-gray-100 pt-6 mt-6 flex justify-between font-bold text-2xl text-brand-secondary">
                       <span>Total</span>
-                      <span className="text-brand-primary">₹{subtotal}</span>
+                      <span className="text-brand-primary">₹{totalPrice.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                   
@@ -124,7 +114,7 @@ export default function CartPage() {
                    Shop Casual
                  </Link>
                  <Link href="/uniform/select-school" className="px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold shadow-lg shadow-brand-primary/20 hover:bg-brand-primary/90 transition-all">
-                   Find Uniform Kit
+                   Find School Uniforms
                  </Link>
               </div>
             </div>

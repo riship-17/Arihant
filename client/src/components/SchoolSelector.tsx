@@ -35,7 +35,7 @@ export default function SchoolSelector() {
   };
 
   const finishSelection = () => {
-    router.push(`/products?school=${selection.school}&class=${selection.class}&gender=${selection.gender}`);
+    router.push(`/uniform/${selection.school}/gender`);
   };
 
   const steps = [

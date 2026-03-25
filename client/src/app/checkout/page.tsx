@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { useCartStore } from "@/store/cartStore";
+import { useCart } from "@/context/CartContext";
 import { useCheckoutStore } from "@/store/checkoutStore";
 import { CreditCard, Truck, MapPin, CheckCircle2, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,39 +12,63 @@ import api from "@/lib/api";
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items: cart, getSubtotal, clearCart } = useCartStore();
-  const subtotal = getSubtotal();
+  const { items: cart, totalPrice: subtotal, clearCart, isHydrated } = useCart();
   const [loading, setLoading] = useState(false);
   
   const shippingAddress = useCheckoutStore((state) => state.shippingAddress);
   const setShippingAddress = useCheckoutStore((state) => state.setShippingAddress);
   const paymentMethod = useCheckoutStore((state) => state.paymentMethod);
   const setPaymentMethod = useCheckoutStore((state) => state.setPaymentMethod);
-  const resetCheckout = useCheckoutStore((state) => state.resetCheckout);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
-      // 1. Create order in backend
-      const res = await api.post("/orders", {
-        items: cart.map(i => ({ product: i.productId, size: i.size, quantity: i.quantity, price: i.price })),
-        shippingAddress: shippingAddress,
-        paymentParams: { paymentMethod: paymentMethod },
-        totalAmount: subtotal
-      });
+      // Mock order creation
+      const orderData = {
+        items: cart.map(item => ({
+          product: item.item_id,
+          name: item.item_name,
+          quantity: item.quantity,
+          size: item.selected_size,
+          price: item.price
+        })),
+        shippingAddress,
+        paymentMethod,
+        totalAmount: subtotal,
+      };
 
-      // 2. Clear cart and redirect
-      clearCart();
-      resetCheckout();
-      router.push(`/order-success?id=${res.data._id}`);
+      const res = await api.post('/orders', orderData);
+      
+      if (res.data) {
+        clearCart();
+        router.push(`/orders/success?id=${res.data._id}`);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Order error:", err);
       alert("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen flex flex-col bg-brand-bg/10">
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (cart.length === 0) {
+    router.push('/cart');
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-brand-bg/10">
@@ -54,64 +79,85 @@ export default function CheckoutPage() {
           <h1 className="text-3xl font-heading text-brand-secondary mb-10">Checkout</h1>
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-            {/* Shipping Info */}
+            {/* Left: Forms */}
             <div className="lg:col-span-2 space-y-8">
-              <div className="bg-white p-8 rounded-3xl border border-brand-primary/5">
+              {/* Shipping Address */}
+              <div className="bg-white p-8 rounded-[40px] border border-brand-primary/5 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary">
                     <MapPin size={20} />
                   </div>
                   <h2 className="text-xl font-heading text-brand-secondary">Shipping Address</h2>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input 
-                    required 
-                    placeholder="Full Name" 
-                    className="p-4 bg-brand-bg/20 rounded-2xl border-none focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                    value={shippingAddress.fullName}
-                    onChange={(e) => setShippingAddress({ fullName: e.target.value })}
-                  />
-                  <input 
-                    required 
-                    placeholder="Phone Number" 
-                    className="p-4 bg-brand-bg/20 rounded-2xl border-none focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                    value={shippingAddress.phone}
-                    onChange={(e) => setShippingAddress({ phone: e.target.value })}
-                  />
-                  <input 
-                    required 
-                    placeholder="Address Line 1" 
-                    className="p-4 bg-brand-bg/20 rounded-2xl border-none focus:ring-2 focus:ring-brand-primary/30 outline-none md:col-span-2"
-                    value={shippingAddress.addressLine1}
-                    onChange={(e) => setShippingAddress({ addressLine1: e.target.value })}
-                  />
-                  <input 
-                    required 
-                    placeholder="City" 
-                    className="p-4 bg-brand-bg/20 rounded-2xl border-none focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                    value={shippingAddress.city}
-                    onChange={(e) => setShippingAddress({ city: e.target.value })}
-                  />
-                  <input 
-                    required 
-                    placeholder="State" 
-                    className="p-4 bg-brand-bg/20 rounded-2xl border-none focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                    value={shippingAddress.state}
-                    onChange={(e) => setShippingAddress({ state: e.target.value })}
-                  />
-                  <input 
-                    required 
-                    placeholder="Zip Code" 
-                    className="p-4 bg-brand-bg/20 rounded-2xl border-none focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                    value={shippingAddress.zipCode}
-                    onChange={(e) => setShippingAddress({ zipCode: e.target.value })}
-                  />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 ml-1">Full Name</label>
+                    <input 
+                      required
+                      value={shippingAddress.fullName}
+                      onChange={(e) => setShippingAddress({ fullName: e.target.value })}
+                      className="w-full px-6 py-4 bg-brand-bg/20 border border-brand-primary/5 rounded-2xl focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all" 
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 ml-1">Phone Number</label>
+                    <input 
+                      required
+                      value={shippingAddress.phone}
+                      onChange={(e) => setShippingAddress({ phone: e.target.value })}
+                      className="w-full px-6 py-4 bg-brand-bg/20 border border-brand-primary/5 rounded-2xl focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all" 
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-sm font-bold text-gray-500 ml-1">Address Line</label>
+                    <input 
+                      required
+                      value={shippingAddress.addressLine1}
+                      onChange={(e) => setShippingAddress({ addressLine1: e.target.value })}
+                      className="w-full px-6 py-4 bg-brand-bg/20 border border-brand-primary/5 rounded-2xl focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all" 
+                      placeholder="Street address, apartment, etc."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 ml-1">City</label>
+                    <input 
+                      required
+                      value={shippingAddress.city}
+                      onChange={(e) => setShippingAddress({ city: e.target.value })}
+                      className="w-full px-6 py-4 bg-brand-bg/20 border border-brand-primary/5 rounded-2xl focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all" 
+                      placeholder="City"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-gray-500 ml-1">State</label>
+                      <input 
+                        required
+                        value={shippingAddress.state}
+                        onChange={(e) => setShippingAddress({ state: e.target.value })}
+                        className="w-full px-6 py-4 bg-brand-bg/20 border border-brand-primary/5 rounded-2xl focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all" 
+                        placeholder="State"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-gray-500 ml-1">Pincode</label>
+                      <input 
+                        required
+                        value={shippingAddress.zipCode}
+                        onChange={(e) => setShippingAddress({ zipCode: e.target.value })}
+                        className="w-full px-6 py-4 bg-brand-bg/20 border border-brand-primary/5 rounded-2xl focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all" 
+                        placeholder="110001"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Payment Method */}
-              <div className="bg-white p-8 rounded-3xl border border-brand-primary/5">
+              <div className="bg-white p-8 rounded-[40px] border border-brand-primary/5 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-brand-primary/10 rounded-full flex items-center justify-center text-brand-primary">
                     <CreditCard size={20} />
@@ -119,55 +165,72 @@ export default function CheckoutPage() {
                   <h2 className="text-xl font-heading text-brand-secondary">Payment Method</h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {["UPI", "Card", "COD"].map((m) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {['UPI', 'COD'].map((method) => (
                     <button
-                      key={m}
+                      key={method}
                       type="button"
-                      onClick={() => setPaymentMethod(m)}
-                      className={`p-6 rounded-2xl border transition-all text-left flex flex-col gap-2 ${paymentMethod === m ? 'bg-brand-primary/5 border-brand-primary' : 'bg-white border-gray-100 hover:border-brand-primary/30'}`}
+                      onClick={() => setPaymentMethod(method)}
+                      className={`flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${paymentMethod === method ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-100 hover:border-brand-primary/20'}`}
                     >
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${paymentMethod === m ? 'border-brand-primary bg-brand-primary' : 'border-gray-300'}`}>
-                        {paymentMethod === m && <div className="w-2 h-2 bg-white rounded-full" />}
+                      <div className="flex items-center gap-4">
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${paymentMethod === method ? 'border-brand-primary bg-brand-primary' : 'border-gray-300'}`}>
+                          {paymentMethod === method && <CheckCircle2 size={14} className="text-white" />}
+                        </div>
+                        <span className="font-bold text-brand-secondary">{method === 'COD' ? 'Cash on Delivery' : 'UPI (PhonePe, Google Pay)'}</span>
                       </div>
-                      <span className="font-bold text-brand-secondary">{m}</span>
-                      <span className="text-[10px] text-gray-400">{m === 'COD' ? 'Pay upon delivery' : 'Instant & Secure'}</span>
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Order Review */}
+            {/* Right: Order Summary */}
             <div className="lg:col-span-1">
-              <div className="bg-white p-8 rounded-3xl border border-brand-primary/5 sticky top-24">
-                <h3 className="text-xl font-heading text-brand-secondary mb-6">Review Order</h3>
-                <div className="space-y-4 mb-8">
+              <div className="bg-white p-8 rounded-[40px] border border-brand-primary/5 shadow-xl shadow-brand-primary/5 sticky top-24">
+                <h3 className="text-xl font-heading text-brand-secondary mb-6">Order Summary</h3>
+                
+                <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                  {cart.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <div className="text-gray-600">
+                        <span className="font-bold text-brand-secondary">{item.quantity}x</span> {item.item_name} ({item.selected_size})
+                      </div>
+                      <div className="font-bold text-brand-secondary">₹{item.price * item.quantity}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-4 pt-6 border-t border-gray-100 mb-8">
                   <div className="flex justify-between text-gray-500">
                     <span>Products</span>
                     <span>₹{subtotal}</span>
                   </div>
                   <div className="flex justify-between text-gray-500">
                     <span>Delivery</span>
-                    <span className="text-green-600 font-medium">FREE</span>
+                    <span className="text-green-600 font-bold uppercase text-xs">Free</span>
                   </div>
-                  <div className="border-t border-gray-100 pt-4 flex justify-between font-bold text-xl text-brand-secondary">
-                    <span>Total Amount</span>
-                    <span>₹{subtotal}</span>
+                  <div className="flex justify-between text-2xl font-bold text-brand-secondary pt-2">
+                    <span>Total</span>
+                    <span className="text-brand-primary">₹{subtotal}</span>
                   </div>
                 </div>
-                
+
                 <button 
-                  disabled={loading}
                   type="submit"
-                  className="w-full py-5 bg-brand-primary text-white rounded-2xl font-semibold shadow-xl shadow-brand-primary/20 hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  disabled={loading}
+                  className="w-full py-5 bg-brand-secondary text-white rounded-2xl font-bold text-lg shadow-xl shadow-brand-secondary/20 hover:bg-brand-secondary/90 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
                 >
-                  {loading ? "Processing..." : "Place Order"} <ArrowRight size={20} />
+                  {loading ? 'Processing...' : (
+                    <>
+                      Place Order <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </button>
                 
-                <div className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
-                    <CheckCircle2 size={14} className="text-green-500" /> Secure SSL Encrypted Payment
-                </div>
+                <p className="text-center text-[10px] text-gray-400 mt-6 flex items-center justify-center gap-1">
+                  <Truck size={12} /> Secure Checkout by Arihant Systems
+                </p>
               </div>
             </div>
           </form>

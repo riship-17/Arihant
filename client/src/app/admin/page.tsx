@@ -2,30 +2,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, ShoppingCart, Package, AlertTriangle, TrendingDown } from "lucide-react";
+import { TrendingUp, ShoppingCart, Package, AlertTriangle } from "lucide-react";
 import api from "@/lib/api";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
     totalOrders: 0,
     revenue: 0,
-    productsCount: 0,
+    itemsCount: 0,
     lowStock: 0
   });
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const ordersRes = await api.get("/orders");
-        const productsRes = await api.get("/products");
+        const itemsRes = await api.get("/uniform-items");
         
-        const revenue = ordersRes.data.reduce((acc: number, o: any) => acc + o.totalAmount, 0);
-        const lowStock = productsRes.data.filter((p: any) => p.sizes.some((s: any) => s.stock < 10)).length;
+        const lowStock = itemsRes.data.filter((p: any) => p.sizes.some((s: any) => s.stock < 10)).length;
 
         setStats({
-          totalOrders: ordersRes.data.length,
-          revenue,
-          productsCount: productsRes.data.length,
+          totalOrders: 0,
+          revenue: 0,
+          itemsCount: itemsRes.data.length,
           lowStock
         });
       } catch (err) {
@@ -38,7 +36,7 @@ export default function AdminDashboard() {
   const cards = [
     { title: "Total Orders", value: stats.totalOrders, icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50" },
     { title: "Total Revenue", value: `₹${stats.revenue}`, icon: TrendingUp, color: "text-green-600", bg: "bg-green-50" },
-    { title: "Active Products", value: stats.productsCount, icon: Package, color: "text-purple-600", bg: "bg-purple-50" },
+    { title: "Uniform Items", value: stats.itemsCount, icon: Package, color: "text-purple-600", bg: "bg-purple-50" },
     { title: "Low Stock Alerts", value: stats.lowStock, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
@@ -67,7 +65,6 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Orders */}
         <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
           <h2 className="text-xl font-heading text-brand-secondary mb-6">Recent Orders</h2>
           <div className="space-y-4">
@@ -75,7 +72,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Peak Season Analytics Placeholder */}
         <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
           <h2 className="text-xl font-heading text-brand-secondary mb-6">Sales Activity</h2>
           <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-2xl">
