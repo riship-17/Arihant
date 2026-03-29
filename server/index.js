@@ -20,8 +20,9 @@ const PORT = process.env.PORT || 5051;
 connectDB();
 
 // Middleware
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: allowedOrigin,
   credentials: true
 }));
 app.use(express.json());
@@ -36,6 +37,16 @@ app.use('/api/carts', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', require('./routes/admin'));
+
+// Root Health check (for Render)
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+// Detailed API Health check
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' });
+});
 
 app.get('/', (req, res) => {
   res.send('Arihant Store API is running...');
