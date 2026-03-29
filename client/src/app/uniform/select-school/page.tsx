@@ -8,22 +8,29 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import api from "@/lib/api";
 
+import { InlineSpinner } from "@/components/PageSpinner";
+import ErrorBanner from "@/components/ErrorBanner";
+import { EmptySchools } from "@/components/EmptyState";
+
 export default function SelectSchoolPage() {
   const router = useRouter();
   const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSchools = async () => {
+    try {
+      const res = await api.get("/schools");
+      setSchools(res.data);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || "Failed to load schools");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchSchools = async () => {
-      try {
-        const res = await api.get("/schools");
-        setSchools(res.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchSchools();
   }, []);
 
@@ -46,11 +53,19 @@ export default function SelectSchoolPage() {
 
           <div className="bg-white rounded-3xl p-8 shadow-xl shadow-brand-primary/5 border border-brand-primary/10">
             {loading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />
-                ))}
+              <div className="py-12">
+                <InlineSpinner message="Finding schools..." />
               </div>
+            ) : error ? (
+              <ErrorBanner 
+                type="server" 
+                message="We couldn't load the schools list. Please try again." 
+                onRetry={() => {
+                  setLoading(true);
+                  setError(null);
+                  fetchSchools();
+                }} 
+              />
             ) : schools.length > 0 ? (
               <div className="space-y-4">
                 {schools.map((s) => (
@@ -89,7 +104,7 @@ export default function SelectSchoolPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-10 text-gray-500">No schools found.</div>
+              <EmptySchools />
             )}
           </div>
         </div>

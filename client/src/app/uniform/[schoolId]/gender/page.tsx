@@ -36,7 +36,7 @@ export default function SelectGenderPage() {
 
           <div className="bg-white rounded-3xl p-8 shadow-xl shadow-brand-primary/5 border border-brand-primary/10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {["Boys", "Girls"].map((g) => (
+              {["Boy", "Girl"].map((g) => (
                 <button
                   key={g}
                   onClick={() => handleSelect(g)}

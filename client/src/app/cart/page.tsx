@@ -6,20 +6,14 @@ import Footer from "@/components/Footer";
 import { Plus, Minus, ArrowRight, ShoppingBag, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import PageSpinner from "@/components/PageSpinner";
+import EmptyState from "@/components/EmptyState";
 
 export default function CartPage() {
   const { items: cartItems, updateQuantity, removeFromCart, totalPrice, totalItems, isHydrated } = useCart();
 
   if (!isHydrated) {
-    return (
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        <Navbar />
-        <main className="flex-grow flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
-        </main>
-        <Footer />
-      </div>
-    );
+    return <PageSpinner message="Loading your cart..." />;
   }
 
   return (
@@ -103,20 +97,13 @@ export default function CartPage() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-20 bg-white rounded-[40px] border border-brand-primary/5 shadow-sm max-w-2xl mx-auto">
-              <div className="w-24 h-24 bg-brand-primary/5 rounded-full flex items-center justify-center mx-auto mb-6 text-brand-primary">
-                <ShoppingBag size={40} />
-              </div>
-              <h2 className="text-3xl font-heading text-brand-secondary mb-4">Your cart is empty</h2>
-              <p className="text-gray-500 mb-10 text-lg">Looks like you haven&apos;t added anything yet.</p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
-                 <Link href="/casual" className="px-8 py-4 bg-white text-brand-secondary border-2 border-brand-primary rounded-2xl font-bold hover:bg-brand-primary/5 transition-all">
-                   Shop Casual
-                 </Link>
-                 <Link href="/uniform/select-school" className="px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold shadow-lg shadow-brand-primary/20 hover:bg-brand-primary/90 transition-all">
-                   Find School Uniforms
-                 </Link>
-              </div>
+            <div className="max-w-2xl mx-auto bg-white rounded-[40px] border border-brand-primary/5 shadow-sm">
+              <EmptyState 
+                icon={ShoppingBag}
+                title="Your cart is empty"
+                description="Looks like you haven't added anything yet. Choose your school to find the right uniform kit."
+                action={{ label: "Find School Uniforms", href: "/uniform/select-school" }}
+              />
             </div>
           )}
         </div>

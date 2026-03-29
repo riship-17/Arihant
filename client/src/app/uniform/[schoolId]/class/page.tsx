@@ -1,18 +1,46 @@
 "use client";
 
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { GraduationCap, ArrowLeft, ArrowRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useUniformStore } from "@/store/uniformStore";
+import api from "@/lib/api";
 
 export default function SelectClassPage() {
   const router = useRouter();
   const { schoolId } = useParams();
   const setClassRange = useUniformStore((state) => state.setClassRange);
+  const gender = useUniformStore((state) => state.gender);
 
-  // Mocking available classes for now - in a real app, this would be fetched based on schoolId
-  const availableClasses = Array.from({ length: 12 }, (_, i) => `${i + 1}`);
+  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const res = await api.get(`/standards?school=${schoolId}`);
+        const genderMap: Record<string, string> = { Boy: 'boy', Girl: 'girl' };
+        const genderVal = genderMap[gender || ''] || 'unisex';
+
+        const filtered = res.data.filter(
+          (s: any) => s.gender === genderVal || s.gender === 'unisex'
+        );
+
+        const uniqueClasses = Array.from(
+          new Set(filtered.map((s: any) => s.className.replace('Grade ', '').trim()))
+        ).sort((a: any, b: any) => Number(a) - Number(b));
+
+        setAvailableClasses(uniqueClasses as string[]);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (schoolId) fetchClasses();
+  }, [schoolId, gender]);
 
   const handleSelect = (classNum: string) => {
     setClassRange(classNum);
@@ -40,18 +68,28 @@ export default function SelectClassPage() {
           </div>
 
           <div className="bg-white rounded-3xl p-8 shadow-xl shadow-brand-primary/5 border border-brand-primary/10">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {availableClasses.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => handleSelect(c)}
-                  className="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-primary/30 hover:shadow-md hover:bg-white transition-all text-center group flex items-center justify-between"
-                >
-                  <span className="font-heading text-xl text-brand-secondary group-hover:text-brand-primary transition-colors">Class {c}</span>
-                  <ArrowRight size={18} className="text-brand-primary opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0" />
-                </button>
-              ))}
-            </div>
+            {loading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="h-20 bg-gray-100 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : availableClasses.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {availableClasses.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => handleSelect(c)}
+                    className="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-primary/30 hover:shadow-md hover:bg-white transition-all text-center group flex items-center justify-between"
+                  >
+                    <span className="font-heading text-xl text-brand-secondary group-hover:text-brand-primary transition-colors">Class {c}</span>
+                    <ArrowRight size={18} className="text-brand-primary opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 text-gray-500">No classes found.</div>
+            )}
           </div>
         </div>
       </main>

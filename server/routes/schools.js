@@ -1,12 +1,14 @@
 const express = require('express');
 const School = require('../models/School');
 const Standard = require('../models/Standard');
+const { auth, admin } = require('../middleware/auth');
 const router = express.Router();
 
-// Get all active schools
+// Get all schools (Admin sees all, others see active)
 router.get('/', async (req, res) => {
   try {
-    const schools = await School.find({ isActive: true });
+    const filter = req.query.admin === 'true' ? {} : { isActive: true };
+    const schools = await School.find(filter);
     res.json(schools);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -26,11 +28,22 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create school (Admin only in future)
-router.post('/', async (req, res) => {
+// Create school (Admin only)
+router.post('/', auth, admin, async (req, res) => {
   try {
     const school = await School.create(req.body);
     res.status(201).json(school);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Edit school (Admin only)
+router.put('/:id', auth, admin, async (req, res) => {
+  try {
+    const school = await School.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!school) return res.status(404).json({ message: 'School not found' });
+    res.json(school);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

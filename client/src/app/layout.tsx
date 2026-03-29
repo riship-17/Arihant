@@ -16,8 +16,21 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Arihant Store | School Uniforms Online",
-  description: "Order high-quality school uniforms online easily. Trusted by parents for years.",
+  title: {
+    default: "Arihant Store | School Uniforms Online",
+    template: "%s | Arihant Store",
+  },
+  description:
+    "Order high-quality school uniforms online. Trusted by parents across the city. Fast delivery, easy returns.",
+  keywords: ["school uniforms", "uniform online", "Arihant store", "school kit", "buy uniform"],
+  openGraph: {
+    title: "Arihant Store — School Uniforms Online",
+    description: "Premium quality school uniforms delivered to your doorstep.",
+    type: "website",
+  },
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

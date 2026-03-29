@@ -104,11 +104,13 @@ const seedDB = async () => {
 
     // ── DPS Boys ──
     addItemsForStandards('Delhi Public School', 'boy', [
-      { itemType: 'shirt', itemName: 'DPS White Shirt', description: 'Crisp white cotton shirt with DPS monogram', price: 650, sizes: sizesSmall, imageUrl: '/images/dps-shirt.webp' },
-      { itemType: 'pant', itemName: 'DPS Grey Trouser', description: 'Grey formal trouser with elastic waist', price: 550, sizes: sizesSmall, imageUrl: '/images/dps-pant.webp' },
-      { itemType: 'tie', itemName: 'DPS Striped Tie', description: 'Navy blue and gold striped tie', price: 200, sizes: sizesAccessory, imageUrl: '/images/dps-tie.webp' },
-      { itemType: 'belt', itemName: 'DPS Leather Belt', description: 'Black leather belt with DPS buckle', price: 250, sizes: sizesAccessory, imageUrl: '/images/dps-belt.webp' },
-      { itemType: 'socks', itemName: 'DPS White Socks', description: 'White ankle-length cotton socks (pair)', price: 80, sizes: sizesAccessory, imageUrl: '/images/dps-socks.webp' }
+      { itemType: 'shirt', uniformType: 'regular', itemName: 'DPS White Shirt', description: 'Crisp white cotton shirt with DPS monogram', price: 650, sizes: sizesSmall, imageUrl: '/images/dps-shirt.webp' },
+      { itemType: 'pant', uniformType: 'regular', itemName: 'DPS Grey Trouser', description: 'Grey formal trouser with elastic waist', price: 550, sizes: sizesSmall, imageUrl: '/images/dps-pant.webp' },
+      { itemType: 'tie', uniformType: 'regular', itemName: 'DPS Striped Tie', description: 'Navy blue and gold striped tie', price: 200, sizes: sizesAccessory, imageUrl: '/images/dps-tie.webp' },
+      { itemType: 'belt', uniformType: 'regular', itemName: 'DPS Leather Belt', description: 'Black leather belt with DPS buckle', price: 250, sizes: sizesAccessory, imageUrl: '/images/dps-belt.webp' },
+      { itemType: 'socks', uniformType: 'regular', itemName: 'DPS White Socks', description: 'White ankle-length cotton socks (pair)', price: 80, sizes: sizesAccessory, imageUrl: '/images/dps-socks.webp' },
+      { itemType: 'shirt', uniformType: 'sports', itemName: 'DPS Sports T-Shirt', description: 'House color sports t-shirt', price: 450, sizes: sizesSmall, imageUrl: '/images/dps-shirt.webp' },
+      { itemType: 'pant', uniformType: 'sports', itemName: 'DPS Track Pants', description: 'Navy blue track pants', price: 600, sizes: sizesSmall, imageUrl: '/images/dps-pant.webp' }
     ]);
 
     // ── DPS Girls ──
@@ -135,9 +137,10 @@ const seedDB = async () => {
 
     // ── KV Girls ──
     addItemsForStandards('Kendriya Vidyalaya', 'girl', [
-      { itemType: 'shirt', itemName: 'KV White Blouse', description: 'White blouse with KV logo', price: 500, sizes: sizesMedium, imageUrl: '/images/kv-shirt.webp' },
-      { itemType: 'skirt', itemName: 'KV Blue Skirt', description: 'Navy blue pleated skirt', price: 520, sizes: sizesMedium, imageUrl: '/images/kv-skirt.webp' },
-      { itemType: 'tie', itemName: 'KV Blue Tie', description: 'Blue and white striped tie', price: 150, sizes: sizesAccessory, imageUrl: '/images/kv-tie.webp' }
+      { itemType: 'shirt', uniformType: 'regular', itemName: 'KV White Blouse', description: 'White blouse with KV logo', price: 500, sizes: sizesMedium, imageUrl: '/images/kv-shirt.webp' },
+      { itemType: 'skirt', uniformType: 'regular', itemName: 'KV Blue Skirt', description: 'Navy blue pleated skirt', price: 520, sizes: sizesMedium, imageUrl: '/images/kv-skirt.webp' },
+      { itemType: 'tie', uniformType: 'regular', itemName: 'KV Blue Tie', description: 'Blue and white striped tie', price: 150, sizes: sizesAccessory, imageUrl: '/images/kv-tie.webp' },
+      { itemType: 'shirt', uniformType: 'sports', itemName: 'KV Sports House T-Shirt', description: 'House color sports t-shirt', price: 400, sizes: sizesMedium, imageUrl: '/images/kv-shirt.webp' }
     ]);
 
     // ── Modern Academy Unisex ──

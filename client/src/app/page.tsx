@@ -21,16 +21,10 @@ export default function Home() {
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
                 <Link 
-                  href="/casual" 
-                  className="w-full sm:w-auto px-10 py-5 bg-white text-brand-secondary rounded-2xl font-bold border-2 border-brand-primary hover:bg-brand-primary/5 transition-all flex items-center justify-center gap-3 text-lg group"
-                >
-                  Shop Casual Wear <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <Link 
                   href="/uniform/select-school" 
-                  className="w-full sm:w-auto px-10 py-5 bg-brand-primary text-white rounded-2xl font-bold shadow-xl shadow-brand-primary/20 hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-3 text-lg group"
+                  className="w-full sm:w-auto px-12 py-5 bg-brand-primary text-white rounded-2xl font-bold shadow-xl shadow-brand-primary/20 hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-3 text-lg group"
                 >
-                  Get School Uniform Kit <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
+                  Find Your School Uniform Kit <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
             </div>
@@ -85,7 +79,7 @@ export default function Home() {
                 <h2 className="text-4xl font-heading text-brand-secondary mb-4">Schools We Serve</h2>
                 <p className="text-gray-600">We provide official uniforms for the most prestigious schools in the region.</p>
               </div>
-              <Link href="/schools" className="text-brand-primary font-semibold flex items-center gap-2 group">
+              <Link href="/uniform/select-school" className="text-brand-primary font-semibold flex items-center gap-2 group">
                 View all schools <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>

@@ -7,6 +7,11 @@ const uniformItemSchema = new mongoose.Schema({
     enum: ['shirt', 'pant', 'skirt', 'socks', 'tie', 'belt', 'shorts', 'blazer'],
     required: true
   },
+  uniformType: {
+    type: String,
+    enum: ['regular', 'sports', 'house'],
+    default: 'regular'
+  },
   itemName: { type: String, required: true },
   description: { type: String },
   price: { type: Number, required: true },

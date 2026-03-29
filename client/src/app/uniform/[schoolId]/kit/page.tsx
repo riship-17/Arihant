@@ -41,6 +41,7 @@ export default function CataloguePage() {
   const [schoolData, setSchoolData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"regular" | "sports">("regular");
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -50,7 +51,7 @@ export default function CataloguePage() {
         setSchoolData(schoolRes.data);
 
         // 2. Map gender label → schema value
-        const genderMap: Record<string, string> = { Boys: "boy", Girls: "girl" };
+        const genderMap: Record<string, string> = { Boy: "boy", Girl: "girl" };
         const genderVal = genderMap[gender || ""] || "unisex";
 
         // 3. Find matching standard
@@ -85,6 +86,9 @@ export default function CataloguePage() {
       fetchItems();
     }
   }, [schoolId, gender, classNum]);
+
+  // Filter items based on active tab
+  const filteredItems = items.filter((item) => (item.uniformType || "regular") === activeTab);
 
   /* ── Empty state ── */
   if (!loading && (error || items.length === 0)) {
@@ -146,7 +150,7 @@ export default function CataloguePage() {
                 {schoolData?.name || "School"} Uniforms
               </h1>
               <p className="text-gray-500 mt-1">
-                Grade {classNum} • {gender}
+                Class {classNum} • {gender}
                 {!loading && (
                   <span className="ml-2 text-brand-primary font-semibold">
                     ({items.length} {items.length === 1 ? "item" : "items"})
@@ -158,20 +162,53 @@ export default function CataloguePage() {
         </div>
       </div>
 
-      {/* ── Main Grid ── */}
+      {/* ── Tabs & Main Grid ── */}
       <main className="flex-grow py-10 pb-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          {/* Tab Selector */}
+          {!loading && items.length > 0 && (
+            <div className="flex bg-white rounded-xl shadow-sm border border-gray-100 p-1 mb-8 w-fit mx-auto lg:mx-0">
+              <button
+                onClick={() => setActiveTab("regular")}
+                className={`px-8 py-3 rounded-lg font-bold text-sm transition-all ${
+                  activeTab === "regular"
+                    ? "bg-brand-primary text-white shadow"
+                    : "text-gray-500 hover:text-brand-secondary hover:bg-gray-50"
+                }`}
+              >
+                Regular Uniform
+              </button>
+              <button
+                onClick={() => setActiveTab("sports")}
+                className={`px-8 py-3 rounded-lg font-bold text-sm transition-all ${
+                  activeTab === "sports"
+                    ? "bg-brand-primary text-white shadow"
+                    : "text-gray-500 hover:text-brand-secondary hover:bg-gray-50"
+                }`}
+              >
+                Sports Uniform
+              </button>
+            </div>
+          )}
+
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <SkeletonCard key={i} />
               ))}
             </div>
-          ) : (
+          ) : filteredItems.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <CatalogueItemCard key={item._id} item={item} />
               ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
+              <Package size={32} className="mx-auto text-gray-300 mb-4" />
+              <h3 className="text-xl font-heading text-brand-secondary mb-2">No items found</h3>
+              <p className="text-gray-500">No {activeTab} uniform items are currently available for this class.</p>
             </div>
           )}
         </div>

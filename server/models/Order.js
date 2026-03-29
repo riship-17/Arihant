@@ -30,6 +30,7 @@ const orderSchema = new mongoose.Schema({
     pincode: String,
     state: String
   },
+  trackingNumber: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -1,31 +1,49 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
 import { useCheckoutStore } from "@/store/checkoutStore";
+import { useAuthStore } from "@/store/authStore";
 import { CreditCard, Truck, MapPin, CheckCircle2, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import api from "@/lib/api";
+
+import PageSpinner from "@/components/PageSpinner";
+import ErrorBanner from "@/components/ErrorBanner";
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items: cart, totalPrice: subtotal, clearCart, isHydrated } = useCart();
+  const { items: cart, totalPrice: subtotal, clearCart, isHydrated: cartHydrated } = useCart();
+  const { isAuthenticated, user } = useAuthStore();
+  
   const [loading, setLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   
   const shippingAddress = useCheckoutStore((state) => state.shippingAddress);
   const setShippingAddress = useCheckoutStore((state) => state.setShippingAddress);
   const paymentMethod = useCheckoutStore((state) => state.paymentMethod);
   const setPaymentMethod = useCheckoutStore((state) => state.setPaymentMethod);
 
+  // Auth Guard
+  useEffect(() => {
+    if (cartHydrated) {
+      if (!isAuthenticated) {
+        router.push("/login");
+      } else {
+        setAuthChecked(true);
+      }
+    }
+  }, [cartHydrated, isAuthenticated, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
     try {
-      // Mock order creation
       const orderData = {
         items: cart.map(item => ({
           product: item.item_id,
@@ -39,39 +57,77 @@ export default function CheckoutPage() {
         totalAmount: subtotal,
       };
 
+      // 1. Create order
       const res = await api.post('/orders', orderData);
-      
-      if (res.data) {
+      const order = res.data;
+
+      // 2. COD flow
+      if (paymentMethod === 'COD') {
         clearCart();
-        router.push(`/orders/success?id=${res.data._id}`);
+        router.push(`/orders/success?id=${order._id}`);
+        return;
       }
-    } catch (err) {
+
+      // 3. Razorpay flow
+      const rzpRes = await api.post('/payments/create-order', { orderId: order._id });
+      const { rzpOrder } = rzpRes.data;
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_123",
+        amount: rzpOrder.amount,
+        currency: rzpOrder.currency,
+        name: "Arihant Store",
+        description: "School Uniform Order",
+        order_id: rzpOrder.id,
+        handler: async function (response: any) {
+          try {
+            await api.post('/payments/verify', {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              orderId: order._id
+            });
+            clearCart();
+            router.push(`/orders/success?id=${order._id}`);
+          } catch (err: any) {
+            console.error(err);
+            alert(err.response?.data?.message || "Payment verification failed. Please contact us.");
+          }
+        },
+        prefill: {
+          name: shippingAddress.fullName,
+          contact: shippingAddress.phone,
+          email: user?.email || ""
+        },
+        theme: { color: "#2b3a55" }
+      };
+
+      const razorpayInstance = new (window as any).Razorpay(options);
+      razorpayInstance.on('payment.failed', function (response: any) {
+        alert("Payment failed: " + response.error.description + ". Please try Again.");
+      });
+      razorpayInstance.open();
+
+    } catch (err: any) {
       console.error("Order error:", err);
-      alert("Something went wrong. Please try again.");
+      alert(err.response?.data?.message || "Failed to process order. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!isHydrated) {
-    return (
-      <div className="min-h-screen flex flex-col bg-brand-bg/10">
-        <Navbar />
-        <main className="flex-grow flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div>
-        </main>
-        <Footer />
-      </div>
-    );
+  if (!cartHydrated || !authChecked) {
+    return <PageSpinner message="Preparing your checkout..." />;
   }
 
   if (cart.length === 0) {
     router.push('/cart');
-    return null;
+    return <PageSpinner message="Redirecting to cart..." />;
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-brand-bg/10">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" />
       <Navbar />
       
       <main className="flex-grow py-12">
@@ -223,7 +279,7 @@ export default function CheckoutPage() {
                 >
                   {loading ? 'Processing...' : (
                     <>
-                      Place Order <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                      {paymentMethod === 'UPI' ? 'Pay Securely' : 'Place Order'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                     </>
                   )}
                 </button>

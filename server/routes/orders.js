@@ -3,42 +3,81 @@ const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const UniformItem = require('../models/UniformItem');
 const { auth, admin } = require('../middleware/auth');
+const { body } = require('express-validator');
+const validate = require('../middleware/validate');
 const router = express.Router();
 
-// Create order from cart
-router.post('/', auth, async (req, res) => {
-  try {
-    const { schoolId, standardId, shippingAddress } = req.body;
+const orderRules = [
+  body('items').isArray({ min: 1 }).withMessage('Your cart is empty. Please add items before placing an order.'),
+  body('items.*.product').notEmpty().withMessage('Invalid item in cart.'),
+  body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1.'),
+  body('items.*.size').notEmpty().withMessage('Please select a size for each item.'),
+  body('shippingAddress.fullName').trim().notEmpty().withMessage('Full name is required.'),
+  body('shippingAddress.phone')
+    .notEmpty().withMessage('Phone number is required.')
+    .matches(/^[6-9]\d{9}$/).withMessage('Please enter a valid 10-digit Indian mobile number.'),
+  body('shippingAddress.addressLine1').trim().notEmpty().withMessage('Address is required.'),
+  body('shippingAddress.city').trim().notEmpty().withMessage('City is required.'),
+  body('shippingAddress.state').trim().notEmpty().withMessage('State is required.'),
+  body('shippingAddress.zipCode')
+    .notEmpty().withMessage('Pincode is required.')
+    .matches(/^\d{6}$/).withMessage('Pincode must be exactly 6 digits.'),
+  body('paymentMethod').isIn(['COD', 'UPI']).withMessage('Please select a valid payment method.'),
+];
 
-    // Get user's cart
-    const cart = await Cart.findOne({ user: req.user.id }).populate('items.item');
-    if (!cart || cart.items.length === 0) {
-      return res.status(400).json({ message: 'Cart is empty' });
+// Create order from cart — Price is always recalculated on the backend
+router.post('/', auth, orderRules, validate, async (req, res) => {
+  try {
+    const { items, shippingAddress, paymentMethod } = req.body;
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: 'Your cart is empty.' });
     }
 
-    // Build order items as snapshot
-    const orderItems = cart.items.map(ci => ({
-      item: ci.item._id,
-      itemName: ci.item.itemName,
-      itemType: ci.item.itemType,
-      size: ci.size,
-      quantity: ci.quantity,
-      price: ci.item.price
-    }));
+    const orderItems = [];
+    let totalAmount = 0;
 
-    const totalAmount = orderItems.reduce((sum, oi) => sum + (oi.price * oi.quantity), 0);
+    for (const ci of items) {
+      const dbItem = await UniformItem.findById(ci.product);
+      if (!dbItem) return res.status(404).json({ message: `Item not found in our catalogue. Please refresh your cart.` });
+      if (!dbItem.isActive) return res.status(400).json({ message: `"${dbItem.itemName}" is no longer available.` });
+      
+      const sizeEntry = dbItem.sizes.find(s => s.size === ci.size);
+      if (!sizeEntry) return res.status(400).json({ message: `Size ${ci.size} is not available for ${dbItem.itemName}.` });
+      if (sizeEntry.stock < ci.quantity) {
+        return res.status(400).json({ message: `Insufficient stock for ${dbItem.itemName} (${ci.size}). Only ${sizeEntry.stock} left.` });
+      }
+
+      // Always use DB price — never trust frontend prices
+      sizeEntry.stock -= ci.quantity;
+      await dbItem.save();
+
+      orderItems.push({
+        item: dbItem._id,
+        itemName: dbItem.itemName,
+        itemType: dbItem.itemType,
+        size: ci.size,
+        quantity: ci.quantity,
+        price: dbItem.price  // DB price, not from frontend
+      });
+      totalAmount += (dbItem.price * ci.quantity);  // DB price
+    }
+
+    const mappedAddress = {
+      street: shippingAddress.addressLine1,
+      city: shippingAddress.city,
+      pincode: shippingAddress.zipCode,
+      state: shippingAddress.state,
+      fullName: shippingAddress.fullName,
+      phone: shippingAddress.phone
+    };
 
     const order = await Order.create({
       user: req.user.id,
-      school: schoolId,
-      standard: standardId,
       items: orderItems,
-      totalAmount,
-      shippingAddress
+      totalAmount,  // backend-calculated total
+      shippingAddress: mappedAddress
     });
-
-    // Clear the cart after order
-    await Cart.findOneAndDelete({ user: req.user.id });
 
     res.status(201).json(order);
   } catch (error) {
@@ -76,12 +115,18 @@ router.get('/', auth, admin, async (req, res) => {
 // Update order status (Admin)
 router.put('/:id/status', auth, admin, async (req, res) => {
   try {
-    const { orderStatus } = req.body;
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { orderStatus },
-      { new: true }
-    );
+    const { orderStatus, trackingNumber } = req.body;
+    const validStatuses = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(orderStatus)) {
+      return res.status(400).json({ message: 'Invalid order status.' });
+    }
+    
+    let updateFields = { orderStatus };
+    if (orderStatus === 'shipped' && trackingNumber) {
+      updateFields.trackingNumber = trackingNumber;
+    }
+
+    const order = await Order.findByIdAndUpdate(req.params.id, updateFields, { new: true });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.json(order);
   } catch (error) {

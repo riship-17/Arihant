@@ -7,6 +7,9 @@ import Footer from "@/components/Footer";
 import api from "@/lib/api";
 import { Plus, CheckCircle, Package } from "lucide-react";
 
+import PageSpinner from "@/components/PageSpinner";
+import ErrorBanner from "@/components/ErrorBanner";
+
 export default function AdminKitsPage() {
   const [schools, setSchools] = useState<any[]>([]);
   const [uniformItems, setUniformItems] = useState<any[]>([]);
@@ -14,21 +17,26 @@ export default function AdminKitsPage() {
   const [selectedClass, setSelectedClass] = useState("1");
   const [selectedGender, setSelectedGender] = useState("boy");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const schoolsRes = await api.get("/schools");
-        setSchools(schoolsRes.data);
-        if (schoolsRes.data.length > 0) setSelectedSchool(schoolsRes.data[0]._id);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    fetchInitialData();
   }, []);
+
+  const fetchInitialData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const schoolsRes = await api.get("/schools");
+      setSchools(schoolsRes.data);
+      if (schoolsRes.data.length > 0) setSelectedSchool(schoolsRes.data[0]._id);
+    } catch (err: any) {
+      console.error("Error fetching data:", err);
+      setError("Failed to load schools list.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -59,7 +67,8 @@ export default function AdminKitsPage() {
     fetchItems();
   }, [selectedSchool, selectedClass, selectedGender]);
 
-  if (loading) return <div className="p-10 text-center">Loading Admin...</div>;
+  if (loading) return <PageSpinner message="Initializing admin panel..." />;
+  if (error) return <div className="p-20 max-w-lg mx-auto"><ErrorBanner type="server" message={error} onRetry={fetchInitialData} /></div>;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
