@@ -6,7 +6,7 @@ export default function Footer() {
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-3 mb-4">
               <img src="/logo.png" alt="Arihant Logo" className="h-10 w-auto brightness-0 invert" />
-              <h2 className="text-2xl font-heading">Arihant Store</h2>
+
             </div>
             <p className="text-sm opacity-80 max-w-md ml-1">
               Your trusted partner for school uniforms for decades. Now bringing quality and convenience to your doorstep via our online store.
