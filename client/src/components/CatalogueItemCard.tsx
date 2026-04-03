@@ -4,6 +4,7 @@
 import { useState, useCallback } from "react";
 import { Minus, Plus, ShoppingBag, Check, AlertTriangle } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import ProductImageGallery from "./ProductImageGallery";
 
 interface VariantEntry {
   _id: string;
@@ -104,28 +105,18 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl hover:shadow-brand-primary/5 transition-all duration-300 flex flex-col">
-      {/* ─── Image ─── */}
-      <div className="relative aspect-[4/5] bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden group">
-        <img
-          src={item.primary_image || item.image_url || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"}
-          alt={item.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          onError={(e) => {
-            e.currentTarget.src =
-              "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800";
-          }}
+      {/* ─── Image Gallery ─── */}
+      <div className="group relative">
+        <ProductImageGallery
+          images={item.images}
+          primaryImage={item.primary_image}
+          fallbackUrl={item.image_url}
+          productName={item.name}
         />
-
-        {/* image count badge */}
-        {item.images && item.images.length > 1 && (
-          <span className="absolute top-4 right-4 px-2 py-1 text-[10px] uppercase font-bold tracking-wider rounded-full bg-black/50 text-white backdrop-blur-sm">
-            {item.images.length} photos
-          </span>
-        )}
-
+        
         {/* type badge */}
         <span
-          className={`absolute top-4 left-4 px-3 py-1 text-[10px] uppercase font-bold tracking-widest rounded-full border ${typeBadge}`}
+          className={`absolute top-4 left-4 px-3 py-1 text-[10px] uppercase font-bold tracking-widest rounded-full border z-10 ${typeBadge}`}
         >
           {item.item_type}
         </span>
