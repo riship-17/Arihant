@@ -126,7 +126,8 @@ export default function AdminProducts() {
       setFormData(prev => ({ ...prev, image_url: res.data.imageUrl }));
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || "Failed to upload image. Please check Cloudinary config.");
+      const errorMsg = err.response?.data?.message || err.message || "Upload failed.";
+      alert(`Oops! ${errorMsg}\n\nCommon fixes:\n1. Check your Cloudinary keys in Render/env\n2. Ensure the file is not corrupted`);
     } finally {
       setUploadingImage(false);
     }

@@ -24,6 +24,17 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+// Middleware to verify Cloudinary config before upload
+const checkCloudinaryConfig = (req, res, next) => {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
+    console.error('[Cloudinary] Missing configuration in environment variables');
+    return res.status(500).json({ 
+      message: 'Cloudinary is not configured. Please add keys to your environment variables.' 
+    });
+  }
+  next();
+};
+
 // Dashboard Stats route
 router.get('/stats', auth, admin, async (req, res) => {
   try {
@@ -74,18 +85,28 @@ router.get('/stats', auth, admin, async (req, res) => {
 });
 
 // Upload image route using CloudinaryStorage
-router.post('/upload-image', auth, admin, upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+router.post('/upload-image', auth, admin, checkCloudinaryConfig, (req, res) => {
+  upload.single('image')(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      // A Multer error occurred when uploading.
+      console.error('[Multer Error]:', err);
+      return res.status(400).json({ message: `Upload error: ${err.message}` });
+    } else if (err) {
+      // An unknown error occurred when uploading.
+      console.error('[Upload Error]:', err);
+      return res.status(500).json({ message: `Server error: ${err.message}` });
     }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded or invalid file type.' });
+    }
+
+    console.log('[Cloudinary] Successfully uploaded:', req.file.path);
     res.json({ 
       imageUrl: req.file.path,
       public_id: req.file.filename
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  });
 });
 
 const Standard = require('../models/Standard');
