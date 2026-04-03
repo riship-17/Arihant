@@ -8,32 +8,38 @@ import api from "@/lib/api";
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
     totalOrders: 0,
-    revenue: 0,
-    itemsCount: 0,
+    totalRevenuePaisa: 0,
+    productsCount: 0,
     lowStock: 0,
     pendingOrders: 0
   });
 
   const [loading, setLoading] = useState(true);
 
+  const fetchStats = async () => {
+    try {
+      const res = await api.get("/admin/stats");
+      setStats(res.data);
+    } catch (err) {
+      console.error("Error fetching stats:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await api.get("/admin/stats");
-        setStats(res.data);
-      } catch (err) {
-        console.error("Error fetching stats:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchStats();
+    
+    // Auto-refresh when admin returns to tab
+    const handleFocus = () => fetchStats();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const cards = [
     { title: "Total Orders", value: stats.totalOrders, icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50" },
-    { title: "Total Revenue", value: `₹${stats.revenue.toLocaleString()}`, icon: TrendingUp, color: "text-green-600", bg: "bg-green-50" },
-    { title: "Uniform Items", value: stats.itemsCount, icon: Package, color: "text-purple-600", bg: "bg-purple-50" },
+    { title: "Total Revenue", value: `₹${(stats.totalRevenuePaisa / 100).toLocaleString('en-IN')}`, icon: TrendingUp, color: "text-green-600", bg: "bg-green-50" },
+    { title: "Uniform Items", value: stats.productsCount, icon: Package, color: "text-purple-600", bg: "bg-purple-50" },
     { title: "Low Stock Alerts", value: stats.lowStock, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { Plus, Edit, Package, ImageIcon } from "lucide-react";
+import { Plus, Edit, Package, ImageIcon, Save } from "lucide-react";
 import { InlineSpinner } from "@/components/PageSpinner";
 import ErrorBanner from "@/components/ErrorBanner";
 import EmptyState from "@/components/EmptyState";
@@ -19,27 +19,26 @@ export default function AdminProducts() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loadingStandards, setLoadingStandards] = useState(false);
 
+  // Variant Stock edits state
+  const [stockValues, setStockValues] = useState<Record<string, number>>({});
+  const [savingStockForId, setSavingStockForId] = useState<string | null>(null);
+
+  // Filters
+  const [filterSchool, setFilterSchool] = useState("");
+
   // Form states
   const [showForm, setShowForm] = useState(false);
   
   const emptyForm = {
     id: "",
-    schoolId: "",
-    standard: "",
-    itemType: "shirt",
-    uniformType: "regular",
-    itemName: "",
-    description: "",
+    school_id: "",
+    standard_id: "",
+    item_type: "shirt",
+    uniform_type: "regular",
+    name: "",
     price: 0,
-    imageUrl: "",
-    sizes: [
-      { size: "S", stock: 0 },
-      { size: "M", stock: 0 },
-      { size: "L", stock: 0 },
-      { size: "XL", stock: 0 },
-      { size: "XXL", stock: 0 },
-    ],
-    isActive: true
+    image_url: "",
+    is_active: true
   };
 
   const [formData, setFormData] = useState(emptyForm);
@@ -47,6 +46,10 @@ export default function AdminProducts() {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    fetchItems();
+  }, [filterSchool]);
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -62,7 +65,8 @@ export default function AdminProducts() {
   };
 
   const fetchItems = async () => {
-    const res = await api.get("/uniform-items");
+    const url = filterSchool ? `/admin/products?school_id=${filterSchool}` : `/admin/products`;
+    const res = await api.get(url);
     setItems(res.data);
   };
 
@@ -89,13 +93,17 @@ export default function AdminProducts() {
   };
 
   const handleSchoolChange = (schoolId: string) => {
-    setFormData({ ...formData, schoolId, standard: "" });
+    setFormData({ ...formData, school_id: schoolId, standard_id: "" });
     loadStandards(schoolId);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      return alert("Only JPG, PNG and WEBP files are allowed.");
+    }
 
     if (file.size > 5 * 1024 * 1024) {
       return alert("File is larger than 5MB max length.");
@@ -109,43 +117,60 @@ export default function AdminProducts() {
       const res = await api.post("/admin/upload-image", payload, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      setFormData(prev => ({ ...prev, imageUrl: res.data.imageUrl }));
+      setFormData(prev => ({ ...prev, image_url: res.data.imageUrl }));
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || "Failed to upload image. Please ensure Cloudinary is configured.");
+      alert(err.response?.data?.message || "Failed to upload image. Please check Cloudinary config.");
     } finally {
       setUploadingImage(false);
     }
   };
 
-  const handleSizeChange = (idx: number, stockVal: number) => {
-    const newSizes = [...formData.sizes];
-    newSizes[idx].stock = stockVal;
-    setFormData({ ...formData, sizes: newSizes });
+  const handleStockChange = (variantId: string, val: string) => {
+    setStockValues(prev => ({ ...prev, [variantId]: parseInt(val) || 0 }));
+  };
+
+  const saveStock = async (variantId: string) => {
+    const stock_qty = stockValues[variantId];
+    if (stock_qty === undefined) return;
+    
+    setSavingStockForId(variantId);
+    try {
+      await api.patch(`/admin/variants/${variantId}/stock`, { stock_qty });
+      // update local
+      setItems(prevItems => prevItems.map(item => ({
+        ...item,
+        variants: item.variants.map((v: any) => v._id === variantId ? { ...v, stock_qty, is_available: stock_qty > 0 } : v)
+      })));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update stock");
+    } finally {
+      setSavingStockForId(null);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.standard) return alert("Please select a standard (class) first.");
+    if (!formData.standard_id) return alert("Please select a standard (class) first.");
 
     setSaving(true);
     try {
       const payload = {
-        standard: formData.standard,
-        itemType: formData.itemType,
-        uniformType: formData.uniformType,
-        itemName: formData.itemName,
-        description: formData.description,
-        price: Number(formData.price),
-        imageUrl: formData.imageUrl,
-        sizes: formData.sizes,
-        isActive: formData.isActive
+        standard_id: formData.standard_id,
+        school_id: formData.school_id,
+        item_type: formData.item_type,
+        uniform_type: formData.uniform_type,
+        name: formData.name,
+        price_paisa: formData.price * 100, // convert directly before sending
+        image_url: formData.image_url,
+        is_active: formData.is_active
       };
 
       if (formData.id) {
-        await api.put(`/uniform-items/${formData.id}`, payload);
+        await api.put(`/admin/products/${formData.id}`, payload);
       } else {
-        await api.post("/uniform-items", payload);
+        await api.post("/admin/products", payload);
       }
       
       setShowForm(false);
@@ -158,6 +183,16 @@ export default function AdminProducts() {
     }
   };
 
+  const toggleProductActive = async (productId: string) => {
+    try {
+      const res = await api.patch(`/admin/products/${productId}/toggle`);
+      setItems(prev => prev.map(p => p._id === productId ? { ...p, is_active: res.data.is_active } : p));
+    } catch (err) {
+      console.error("Error toggling product:", err);
+      alert("Failed to update product visibility.");
+    }
+  };
+
   const openAddForm = () => {
     setFormData(emptyForm);
     setStandards([]);
@@ -165,26 +200,19 @@ export default function AdminProducts() {
   };
 
   const openEditForm = async (item: any) => {
-    const schoolId = item.standard?.school?._id || item.standard?.school;
+    const schoolId = item.school_id._id;
     await loadStandards(schoolId);
-
-    const formSizes = emptyForm.sizes.map(defaultSize => {
-      const existing = item.sizes.find((s: any) => s.size === defaultSize.size);
-      return existing ? { ...existing } : defaultSize;
-    });
 
     setFormData({
       id: item._id,
-      schoolId: schoolId,
-      standard: item.standard?._id || item.standard,
-      itemType: item.itemType,
-      uniformType: item.uniformType || 'regular',
-      itemName: item.itemName,
-      description: item.description || "",
-      price: item.price,
-      imageUrl: item.imageUrl || "",
-      sizes: formSizes,
-      isActive: item.isActive
+      school_id: schoolId,
+      standard_id: item.standard_id._id,
+      item_type: item.item_type,
+      uniform_type: item.uniform_type,
+      name: item.name,
+      price: item.price_paisa / 100, // retrieve to rupees
+      image_url: item.image_url || "",
+      is_active: item.is_active
     });
 
     setShowForm(true);
@@ -198,11 +226,26 @@ export default function AdminProducts() {
           onClick={openAddForm}
           className="bg-brand-primary text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-brand-primary/90 transition-all shadow-md shadow-brand-primary/20"
         >
-          <Plus size={20} /> Add Item
+          <Plus size={20} /> Add Product
         </button>
       </div>
 
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 min-h-[400px]">
+      {/* Catalog Filter Controls */}
+      <div className="bg-white rounded-t-3xl p-6 border-b border-gray-100 flex items-center gap-4">
+        <label className="text-sm font-bold text-gray-500">Filter By School:</label>
+        <select 
+          className="p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-primary/20 text-sm"
+          value={filterSchool}
+          onChange={(e) => setFilterSchool(e.target.value)}
+        >
+          <option value="">All Schools</option>
+          {schools.map(sch => (
+            <option key={sch._id} value={sch._id}>{sch.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="bg-white rounded-b-3xl p-6 shadow-sm border border-t-0 border-gray-100 min-h-[400px]">
         {loading ? (
           <div className="py-20">
             <InlineSpinner message="Loading catalog..." />
@@ -216,13 +259,13 @@ export default function AdminProducts() {
             <EmptyState 
               icon={Package} 
               title="Catalogue is Empty" 
-              description="You haven't added any uniform items yet. Start by clicking the 'Add Item' button." 
-              action={{ label: "Add Your First Item", href: "#" }}
+              description="No uniform items found matching the current criteria." 
+              action={{ label: "Add Item", href: "#" }}
               onClick={openAddForm}
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto pb-32">
             <table className="w-full text-left">
               <thead className="text-sm text-gray-400 border-b border-gray-100">
                 <tr>
@@ -230,36 +273,72 @@ export default function AdminProducts() {
                   <th className="pb-4 font-normal">Type</th>
                   <th className="pb-4 font-normal hidden md:table-cell">Standard / School</th>
                   <th className="pb-4 font-normal">Price</th>
+                  <th className="pb-4 font-normal">Variant Stock Control</th>
                   <th className="pb-4 font-normal">Status</th>
                   <th className="pb-4 font-normal text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
                 {items.map((item) => (
-                  <tr key={item._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="py-4 font-bold text-brand-secondary flex items-center gap-3">
-                      {item.imageUrl ? (
-                        <img src={item.imageUrl} alt={item.itemName} className="w-10 h-10 rounded-lg object-cover bg-gray-100" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400"><ImageIcon size={16}/></div>
-                      )}
-                      <span>{item.itemName}</span>
+                  <tr key={item._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors align-top">
+                    <td className="py-4 font-bold text-brand-secondary">
+                      <div className="flex items-start gap-3">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400"><ImageIcon size={16}/></div>
+                        )}
+                        <span className="mt-1">{item.name}</span>
+                      </div>
                     </td>
-                    <td className="py-4 text-gray-500 capitalize">{item.itemType} <span className="text-[10px] bg-brand-bg text-brand-primary px-2 py-1 rounded-md ml-1">{item.uniformType}</span></td>
+                    <td className="py-4 text-gray-500 capitalize">{item.item_type} <br/><span className="text-[10px] bg-brand-bg text-brand-primary px-2 py-1 rounded-md mt-1 inline-block">{item.uniform_type}</span></td>
                     <td className="py-4 text-gray-500 hidden md:table-cell">
-                      {item.standard?.className} ({item.standard?.gender}) <br/>
-                      <span className="text-[10px] text-gray-400">{item.standard?.school?.name}</span>
+                      {item.standard_id?.class_name} ({item.standard_id?.gender}) <br/>
+                      <span className="text-[10px] text-gray-400">{item.school_id?.name}</span>
                     </td>
-                    <td className="py-4 font-bold text-brand-secondary">₹{item.price}</td>
+                    <td className="py-4 font-bold text-brand-secondary">₹{item.price_paisa / 100}</td>
+                    
+                    {/* Compact Variant Stock Controls */}
                     <td className="py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                        item.isActive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                      }`}>
-                        {item.isActive ? 'Active' : 'Inactive'}
-                      </span>
+                      <div className="flex flex-wrap gap-2 max-w-[280px]">
+                        {item.variants && item.variants.map((v: any) => (
+                          <div key={v._id} className="flex flex-col items-center gap-1 border border-gray-100 p-1 rounded bg-white">
+                            <span className="text-[10px] font-bold text-gray-400">{v.size}</span>
+                            <div className="flex items-center">
+                              <input 
+                                type="number" 
+                                min="0"
+                                className="w-10 text-center text-xs p-1 border-gray-200 outline-none rounded bg-gray-50 focus:bg-white focus:ring-1 ring-brand-primary"
+                                value={stockValues[v._id] ?? v.stock_qty}
+                                onChange={(e) => handleStockChange(v._id, e.target.value)}
+                              />
+                            </div>
+                            {stockValues[v._id] !== undefined && stockValues[v._id] !== v.stock_qty && (
+                              <button 
+                                onClick={() => saveStock(v._id)}
+                                disabled={savingStockForId === v._id}
+                                className="text-[9px] bg-brand-accent text-white px-1 py-0.5 rounded w-full flex items-center justify-center disabled:opacity-50"
+                              >
+                                {savingStockForId === v._id ? '...' : 'Save'}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+
+                    <td className="py-4">
+                      <button
+                        onClick={() => toggleProductActive(item._id)}
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-opacity hover:opacity-80 ${
+                          item.is_active ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                        }`}
+                      >
+                        {item.is_active ? 'Active' : 'Inactive'}
+                      </button>
                     </td>
                     <td className="py-4 text-right flex justify-end gap-2">
-                      <button
+                       <button
                         onClick={() => openEditForm(item)}
                         className="text-brand-primary hover:bg-brand-primary/10 p-2 rounded-full inline-flex transition-colors cursor-pointer"
                       >
@@ -281,7 +360,7 @@ export default function AdminProducts() {
             <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
               <h2 className="text-xl font-heading text-brand-secondary flex items-center gap-2">
                 <Package size={20} className="text-brand-primary" />
-                {formData.id ? "Edit Uniform Item" : "Add Uniform Item"}
+                {formData.id ? "Edit Uniform Product" : "Add Uniform Product"}
               </h2>
             </div>
 
@@ -293,7 +372,7 @@ export default function AdminProducts() {
                   <label className="block text-xs uppercase tracking-wider font-bold text-gray-400 mb-2 ml-1">Select School</label>
                   <select
                     required
-                    value={formData.schoolId}
+                    value={formData.school_id}
                     onChange={(e) => handleSchoolChange(e.target.value)}
                     className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none shadow-sm"
                   >
@@ -307,22 +386,22 @@ export default function AdminProducts() {
                   <label className="block text-xs uppercase tracking-wider font-bold text-gray-400 mb-2 ml-1">Select Standard (Class)</label>
                   <select
                     required
-                    value={formData.standard}
-                    onChange={(e) => setFormData({...formData, standard: e.target.value})}
-                    disabled={loadingStandards || !formData.schoolId}
+                    value={formData.standard_id}
+                    onChange={(e) => setFormData({...formData, standard_id: e.target.value})}
+                    disabled={loadingStandards || !formData.school_id}
                     className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none shadow-sm disabled:opacity-50"
                   >
                     <option value="" disabled>
                       {loadingStandards 
                         ? "Fetching classes..." 
-                        : !formData.schoolId 
+                        : !formData.school_id 
                           ? "-- Select School First --" 
                           : standards.length === 0 
                             ? "No classes found for this school" 
                             : "-- Select Standard --"}
                     </option>
                     {standards.map(std => (
-                      <option key={std._id} value={std._id}>{std.className} ({std.gender})</option>
+                      <option key={std._id} value={std._id}>{std.class_name} ({std.gender})</option>
                     ))}
                   </select>
                 </div>
@@ -331,12 +410,12 @@ export default function AdminProducts() {
               {/* Item Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-600 mb-2 ml-1">Item Name</label>
+                  <label className="block text-sm font-bold text-gray-600 mb-2 ml-1">Product Name</label>
                   <input
                     required
                     type="text"
-                    value={formData.itemName}
-                    onChange={(e) => setFormData({...formData, itemName: e.target.value})}
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
                     className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none"
                     placeholder="e.g. Summer Shirt Half Sleeve"
                   />
@@ -358,26 +437,26 @@ export default function AdminProducts() {
                   <label className="block text-sm font-bold text-gray-600 mb-2 ml-1">Physical Item Type</label>
                   <select
                     required
-                    value={formData.itemType}
-                    onChange={(e) => setFormData({...formData, itemType: e.target.value})}
+                    value={formData.item_type}
+                    onChange={(e) => setFormData({...formData, item_type: e.target.value})}
                     className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none"
                   >
-                    <option value="shirt">Shirt</option>
+                    <option value="shirt">Shirt / Top</option>
                     <option value="pant">Pant / Trousers</option>
                     <option value="skirt">Skirt / Tunic</option>
                     <option value="shorts">Shorts</option>
                     <option value="blazer">Blazer / Sweater</option>
-                    <option value="tie">Tie</option>
-                    <option value="belt">Belt</option>
+                    <option value="shoes">Shoes</option>
                     <option value="socks">Socks</option>
+                    <option value="accessories">Accessories / Tie / Belt</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-600 mb-2 ml-1">Uniform Category</label>
                   <select
                     required
-                    value={formData.uniformType}
-                    onChange={(e) => setFormData({...formData, uniformType: e.target.value})}
+                    value={formData.uniform_type}
+                    onChange={(e) => setFormData({...formData, uniform_type: e.target.value})}
                     className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none"
                   >
                     <option value="regular">Regular</option>
@@ -388,58 +467,46 @@ export default function AdminProducts() {
               </div>
 
               {/* Cloudinary Image Upload */}
-              <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center">
-                <div className="mb-4">
-                  {formData.imageUrl ? (
-                    <img src={formData.imageUrl} alt="Preview" className="w-32 h-32 object-cover mx-auto rounded-xl shadow-md" />
+              <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center flex flex-col md:flex-row items-center gap-6">
+                <div className="flex-shrink-0">
+                  {formData.image_url ? (
+                    <img src={formData.image_url} alt="Preview" className="w-32 h-32 object-cover rounded-xl shadow-md" />
                   ) : (
-                    <div className="w-16 h-16 bg-white rounded-xl mx-auto flex items-center justify-center text-gray-400 shadow-sm">
-                      <ImageIcon size={24} />
+                    <div className="w-32 h-32 bg-white rounded-xl flex flex-col items-center justify-center text-gray-400 shadow-sm">
+                      <ImageIcon size={32} className="mb-2" />
+                      <span className="text-xs">No Image</span>
                     </div>
                   )}
                 </div>
                 
-                <h3 className="text-sm font-bold text-brand-secondary mb-2">Item Image</h3>
-                <label className="bg-white border border-gray-200 text-brand-primary px-4 py-2 rounded-xl text-sm font-bold cursor-pointer hover:bg-gray-50 transition-colors inline-block relative">
-                  {uploadingImage ? "Uploading to Cloudinary..." : "Select File"}
-                  <input
-                    type="file"
-                    accept="image/png, image/jpeg, image/webp"
-                    className="hidden"
-                    onChange={handleImageUpload}
-                    disabled={uploadingImage}
-                  />
-                </label>
-                <p className="text-xs text-gray-400 mt-2">Max 5MB (JPG, PNG, WEBP)</p>
-              </div>
-
-              {/* Stock Matrix */}
-              <div>
-                <h3 className="text-sm font-bold text-brand-secondary mb-3">Inventory Stock Matrix</h3>
-                <div className="flex gap-4 overflow-x-auto pb-2">
-                  {formData.sizes.map((s, idx) => (
-                    <div key={s.size} className="bg-gray-50 p-4 rounded-xl flex-1 text-center min-w-[80px]">
-                      <div className="text-xs font-bold text-brand-primary bg-brand-primary/10 rounded-full w-8 h-8 flex items-center justify-center mx-auto mb-2">
-                        {s.size}
-                      </div>
-                      <input 
-                        type="number"
-                        min="0"
-                        value={s.stock}
-                        onChange={(e) => handleSizeChange(idx, Number(e.target.value))}
-                        className="w-full text-center p-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none font-bold text-brand-secondary"
-                      />
-                    </div>
-                  ))}
+                <div className="text-left">
+                  <h3 className="text-sm font-bold text-brand-secondary mb-2">Item Image</h3>
+                  <label className="bg-white border border-gray-200 text-brand-primary px-4 py-2 rounded-xl text-sm font-bold cursor-pointer hover:bg-gray-50 transition-colors inline-block relative">
+                    {uploadingImage ? "Uploading to Cloudinary..." : "Select Image File"}
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                    />
+                  </label>
+                  <p className="text-xs text-gray-400 mt-2">Max 5MB (JPG, PNG, WEBP).<br/>Square aspect ratio recommended.</p>
                 </div>
               </div>
+
+              {!formData.id && (
+                <div className="bg-brand-accent/5 border border-brand-accent/20 p-4 rounded-xl text-xs text-brand-secondary">
+                  <strong>Note:</strong> Standard size variants (S, M, L, etc. or shoe sizes) will be automatically generated upon creation. You can set stock quantities from the catalog list afterwards.
+                </div>
+              )}
               
               <div className="flex items-center gap-2 pt-2 border-t border-gray-100 mt-6">
                 <input 
                   type="checkbox" 
                   id="isActive" 
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
                   className="w-5 h-5 accent-brand-primary"
                 />
                 <label htmlFor="isActive" className="text-sm font-bold text-brand-secondary">Item is Active & Visible</label>
@@ -460,7 +527,7 @@ export default function AdminProducts() {
                   disabled={saving || uploadingImage}
                   className="flex-1 py-4 bg-brand-primary text-white font-bold rounded-xl hover:bg-brand-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {saving ? "Saving Data..." : "Save Finished Item"}
+                  {saving ? "Saving Data..." : "Save Product"}
                 </button>
               </div>
             </form>

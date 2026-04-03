@@ -27,8 +27,8 @@ export default function AdminOrders() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get("/orders");
-      setOrders(res.data);
+      const res = await api.get("/admin/orders");
+      setOrders(res.data.orders);
     } catch (err: any) {
       console.error(err);
       setError("Failed to fetch orders. Please try again later.");
@@ -41,11 +41,11 @@ export default function AdminOrders() {
     if (!selectedOrder) return;
     setUpdating(true);
     try {
-      const payload: any = { orderStatus: editStatus };
+      const payload: any = { order_status: editStatus };
       if (editStatus === 'shipped') {
-        payload.trackingNumber = trackingNumber;
+        payload.tracking_number = trackingNumber;
       }
-      await api.put(`/orders/${selectedOrder._id}/status`, payload);
+      await api.patch(`/admin/orders/${selectedOrder._id}/status`, payload);
       alert("Status updated successfully!");
       setSelectedOrder(null);
       fetchOrders();
@@ -58,7 +58,7 @@ export default function AdminOrders() {
   };
 
   const filteredOrders = orders.filter(
-    (order) => filter === "all" || order.orderStatus === filter
+    (order) => filter === "all" || order.order_status === filter
   );
 
   if (loading) return <div className="p-8">Loading orders...</div>;
@@ -120,25 +120,25 @@ export default function AdminOrders() {
                 {filteredOrders.map((order) => (
                   <tr key={order._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="py-4 font-medium text-brand-secondary">#{order._id.slice(-6)}</td>
-                    <td className="py-4 text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
-                    <td className="py-4 text-gray-500">{order.user?.name || "Guest"}</td>
+                    <td className="py-4 text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
+                    <td className="py-4 text-gray-500">{order.user_id?.name || "Guest"}</td>
                     <td className="py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
-                        order.orderStatus === 'delivered' ? 'bg-green-100 text-green-600' :
-                        order.orderStatus === 'cancelled' ? 'bg-red-100 text-red-600' :
-                        order.orderStatus === 'shipped' ? 'bg-blue-100 text-blue-600' :
+                        order.order_status === 'delivered' ? 'bg-green-100 text-green-600' :
+                        order.order_status === 'cancelled' ? 'bg-red-100 text-red-600' :
+                        order.order_status === 'shipped' ? 'bg-blue-100 text-blue-600' :
                         'bg-orange-100 text-orange-600'
                       }`}>
-                        {order.orderStatus}
+                        {order.order_status}
                       </span>
                     </td>
-                    <td className="py-4 font-bold text-brand-secondary">₹{order.totalAmount}</td>
+                    <td className="py-4 font-bold text-brand-secondary">₹{order.total_paisa / 100}</td>
                     <td className="py-4 text-right">
                       <button
                         onClick={() => {
                           setSelectedOrder(order);
-                          setEditStatus(order.orderStatus);
-                          setTrackingNumber(order.trackingNumber || "");
+                          setEditStatus(order.order_status);
+                          setTrackingNumber(order.tracking_number || "");
                         }}
                         className="text-brand-primary hover:bg-brand-primary/10 p-2 rounded-full inline-flex items-center justify-center transition-colors"
                       >
@@ -172,15 +172,14 @@ export default function AdminOrders() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-xs uppercase font-bold text-gray-400 mb-2">Customer Details</h3>
-                  <p className="font-bold text-brand-secondary">{selectedOrder.user?.name}</p>
-                  <p className="text-sm text-gray-500">{selectedOrder.user?.email}</p>
-                  <p className="text-sm text-gray-500">{selectedOrder.shippingAddress?.phone}</p>
+                  <p className="font-bold text-brand-secondary">{selectedOrder.user_id?.name}</p>
+                  <p className="text-sm text-gray-500">{selectedOrder.user_id?.email}</p>
+                  <p className="text-sm text-gray-500">{selectedOrder.user_id?.phone}</p>
                 </div>
                 <div>
                   <h3 className="text-xs uppercase font-bold text-gray-400 mb-2">Shipping Address</h3>
                   <p className="text-sm text-gray-600">
-                    {selectedOrder.shippingAddress?.street}, <br/>
-                    {selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.state} {selectedOrder.shippingAddress?.pincode}
+                    {selectedOrder.address}
                   </p>
                 </div>
               </div>
@@ -191,15 +190,21 @@ export default function AdminOrders() {
                 <div className="bg-gray-50 p-4 rounded-xl space-y-3">
                   {selectedOrder.items.map((item: any, idx: number) => (
                     <div key={idx} className="flex justify-between text-sm">
-                      <div className="font-semibold text-brand-secondary">
-                        {item.quantity}x {item.itemName} <span className="text-gray-400">({item.size})</span>
+                      <div className="flex gap-3">
+                        <img src={item.product_id?.image_url} alt="" className="w-12 h-12 rounded object-cover" />
+                        <div>
+                          <div className="font-semibold text-brand-secondary">
+                            {item.quantity}x {item.product_name_snapshot}
+                          </div>
+                          <div className="text-gray-400 text-xs mt-1">Size: {item.size_snapshot}</div>
+                        </div>
                       </div>
-                      <div className="text-gray-600">₹{item.price * item.quantity}</div>
+                      <div className="text-gray-600 self-center">₹{(item.price_paisa_snapshot * item.quantity)/100}</div>
                     </div>
                   ))}
                   <div className="border-t border-gray-200 pt-3 mt-3 flex justify-between font-bold text-brand-secondary">
                     <span>Grand Total</span>
-                    <span className="text-brand-primary">₹{selectedOrder.totalAmount}</span>
+                    <span className="text-brand-primary">₹{selectedOrder.total_paisa / 100}</span>
                   </div>
                 </div>
               </div>

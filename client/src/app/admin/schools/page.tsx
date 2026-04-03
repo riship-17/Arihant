@@ -47,10 +47,11 @@ export default function AdminSchools() {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload = { ...formData, is_active: formData.isActive };
       if (formData.id) {
-        await api.put(`/schools/${formData.id}`, formData);
+        await api.put(`/schools/${formData.id}`, payload);
       } else {
-        await api.post("/schools", formData);
+        await api.post("/schools", payload);
       }
       setShowSchoolForm(false);
       fetchSchools();
@@ -100,9 +101,9 @@ export default function AdminSchools() {
 
     setSavingStandard(true);
     try {
-      await api.post("/standards", {
-        school: selectedSchool._id,
-        className: newStandard.className,
+      await api.post("/admin/standards", {
+        school_id: selectedSchool._id,
+        class_name: newStandard.className,
         gender: newStandard.gender
       });
       setNewStandard({ className: "", gender: "boy" });
@@ -112,6 +113,16 @@ export default function AdminSchools() {
       alert("Failed to save standard");
     } finally {
       setSavingStandard(false);
+    }
+  };
+
+  const toggleSchoolActive = async (schoolId: string) => {
+    try {
+      const res = await api.patch(`/admin/schools/${schoolId}/toggle`);
+      setSchools(prev => prev.map(s => s._id === schoolId ? { ...s, is_active: res.data.is_active } : s));
+    } catch (err) {
+      console.error("Error toggling status:", err);
+      alert("Failed to update status.");
     }
   };
 
@@ -165,11 +176,14 @@ export default function AdminSchools() {
                     <td className="py-4 text-gray-500">{school.board}</td>
                     <td className="py-4 text-gray-500 hidden md:table-cell">{school.city}, {school.state}</td>
                     <td className="py-4 hidden sm:table-cell">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        school.isActive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                      }`}>
-                        {school.isActive ? 'Active' : 'Inactive'}
-                      </span>
+                      <button
+                        onClick={() => toggleSchoolActive(school._id)}
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase cursor-pointer hover:opacity-80 transition-opacity ${
+                          school.is_active ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                        }`}
+                      >
+                        {school.is_active ? 'Active' : 'Inactive'}
+                      </button>
                     </td>
                     <td className="py-4 text-right flex justify-end gap-1 sm:gap-2">
                       <button
@@ -219,7 +233,7 @@ export default function AdminSchools() {
                 <ul className="space-y-2 max-h-[200px] overflow-y-auto">
                   {schoolStandards.map(std => (
                     <li key={std._id} className="bg-gray-50 p-3 rounded-xl flex justify-between items-center text-sm">
-                      <span className="font-bold text-brand-secondary">{std.className}</span>
+                      <span className="font-bold text-brand-secondary">{std.class_name}</span>
                       <span className="px-2 py-1 bg-white rounded-lg text-gray-500 text-xs shadow-sm capitalize">{std.gender}</span>
                     </li>
                   ))}
@@ -234,7 +248,7 @@ export default function AdminSchools() {
                 <input
                   required
                   type="text"
-                  placeholder="e.g. Grade 5"
+                  placeholder="e.g. Std 1 to 5"
                   value={newStandard.className}
                   onChange={(e) => setNewStandard({...newStandard, className: e.target.value})}
                   className="flex-1 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none text-sm"
@@ -245,9 +259,10 @@ export default function AdminSchools() {
                   onChange={(e) => setNewStandard({...newStandard, gender: e.target.value})}
                   className="p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-primary/20 outline-none text-sm bg-white"
                 >
+                  <option value="both">Both Boys & Girls (creates 2 records)</option>
                   <option value="boy">Boy</option>
                   <option value="girl">Girl</option>
-                  <option value="unisex">Unisex</option>
+                  <option value="unisex">Unisex / Common</option>
                 </select>
                 <button
                   type="submit"
