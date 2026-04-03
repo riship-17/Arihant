@@ -22,15 +22,15 @@ export default function SelectClassPage() {
       try {
         const res = await api.get(`/standards?school=${schoolId}`);
         const genderMap: Record<string, string> = { Boy: 'boy', Girl: 'girl' };
-        const genderVal = genderMap[gender || ''] || 'unisex';
+        const genderVal = genderMap[gender || ''] || 'boy';
 
         const filtered = res.data.filter(
-          (s: any) => s.gender === genderVal || s.gender === 'unisex'
+          (s: any) => s.gender === genderVal
         );
 
         const uniqueClasses = Array.from(
-          new Set(filtered.map((s: any) => s.className.replace('Grade ', '').trim()))
-        ).sort((a: any, b: any) => Number(a) - Number(b));
+          new Set(filtered.map((s: any) => s.class_name))
+        ) as string[];
 
         setAvailableClasses(uniqueClasses as string[]);
       } catch (err) {
@@ -82,7 +82,7 @@ export default function SelectClassPage() {
                     onClick={() => handleSelect(c)}
                     className="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:border-brand-primary/30 hover:shadow-md hover:bg-white transition-all text-center group flex items-center justify-between"
                   >
-                    <span className="font-heading text-xl text-brand-secondary group-hover:text-brand-primary transition-colors">Class {c}</span>
+                    <span className="font-heading text-xl text-brand-secondary group-hover:text-brand-primary transition-colors">{c}</span>
                     <ArrowRight size={18} className="text-brand-primary opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0" />
                   </button>
                 ))}

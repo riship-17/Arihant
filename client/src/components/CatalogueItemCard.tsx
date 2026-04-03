@@ -5,18 +5,20 @@ import { useState, useCallback } from "react";
 import { Minus, Plus, ShoppingBag, Check, AlertTriangle } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 
-interface SizeEntry {
+interface VariantEntry {
+  _id: string;
   size: string;
-  stock: number;
+  stock_qty: number;
+  is_available: boolean;
 }
 
 interface CatalogueItem {
   _id: string;
-  itemName: string;
-  itemType: string;
-  price: number;
-  imageUrl: string;
-  sizes: SizeEntry[];
+  name: string;
+  item_type: string;
+  price_paisa: number;
+  image_url: string;
+  variants: VariantEntry[];
 }
 
 export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
@@ -27,19 +29,19 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
   const [addedFeedback, setAddedFeedback] = useState(false);
 
   /* derived */
-  const selectedSizeEntry = item.sizes.find((s) => s.size === selectedSize);
-  const maxStock = selectedSizeEntry?.stock ?? 0;
+  const selectedVariant = item.variants?.find((v) => v.size === selectedSize);
+  const maxStock = selectedVariant?.stock_qty ?? 0;
   const lowStock = maxStock > 0 && maxStock <= 3;
 
   /* handlers */
   const handleSizeSelect = useCallback(
     (size: string) => {
-      const entry = item.sizes.find((s) => s.size === size);
-      if (!entry || entry.stock === 0) return;          // can't select OOS
+      const variant = item.variants?.find((v) => v.size === size);
+      if (!variant || variant.stock_qty === 0) return;   // can't select OOS
       setSelectedSize(size);
-      setQuantity(entry.stock > 0 ? 1 : 0);             // reset qty to 1 on size change
+      setQuantity(variant.stock_qty > 0 ? 1 : 0);        // reset qty to 1 on size change
     },
-    [item.sizes]
+    [item.variants]
   );
 
   const handleMinus = () => {
@@ -57,10 +59,10 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
 
     addToCart({
       item_id: item._id,
-      item_name: item.itemName,
-      item_type: item.itemType,
-      image_url: item.imageUrl,
-      price: item.price,
+      item_name: item.name,
+      item_type: item.item_type,
+      image_url: item.image_url,
+      price: item.price_paisa / 100,
       selected_size: selectedSize,
       quantity,
     });
@@ -85,15 +87,15 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
     belt: "bg-stone-100 text-stone-600 border-stone-200",
     socks: "bg-emerald-50 text-emerald-600 border-emerald-100",
   };
-  const typeBadge = typeColors[item.itemType] ?? "bg-gray-50 text-gray-600 border-gray-100";
+  const typeBadge = typeColors[item.item_type] ?? "bg-gray-50 text-gray-600 border-gray-100";
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl hover:shadow-brand-primary/5 transition-all duration-300 flex flex-col">
       {/* ─── Image ─── */}
       <div className="relative aspect-[4/5] bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden group">
         <img
-          src={item.imageUrl || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"}
-          alt={item.itemName}
+          src={item.image_url || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"}
+          alt={item.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           onError={(e) => {
             e.currentTarget.src =
@@ -105,7 +107,7 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
         <span
           className={`absolute top-4 left-4 px-3 py-1 text-[10px] uppercase font-bold tracking-widest rounded-full border ${typeBadge}`}
         >
-          {item.itemType}
+          {item.item_type}
         </span>
       </div>
 
@@ -114,9 +116,9 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
         {/* name + price */}
         <div>
           <h3 className="text-lg font-heading text-brand-secondary leading-snug line-clamp-2 mb-1">
-            {item.itemName}
+            {item.name}
           </h3>
-          <div className="text-2xl font-bold text-brand-primary">₹{item.price}</div>
+          <div className="text-2xl font-bold text-brand-primary">₹{item.price_paisa > 0 ? (item.price_paisa / 100).toFixed(0) : 'TBD'}</div>
         </div>
 
         {/* ─── Size Selector ─── */}
@@ -125,8 +127,8 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
             Select Size
           </span>
           <div className="flex flex-wrap gap-2">
-            {item.sizes.map((s) => {
-              const outOfStock = s.stock === 0;
+            {(item.variants || []).map((s) => {
+              const outOfStock = s.stock_qty === 0;
               const isSelected = selectedSize === s.size;
 
               return (

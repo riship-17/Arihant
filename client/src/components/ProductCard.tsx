@@ -12,8 +12,8 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div className="relative aspect-[4/5] bg-brand-bg/20 overflow-hidden">
         {/* Product Image */}
         <img 
-          src={product.imageUrl || product.images?.[0] || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"} 
-          alt={product.itemName || product.name}
+          src={product.image_url || product.imageUrl || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"} 
+          alt={product.name || product.itemName}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"; }}
         />
@@ -34,13 +34,13 @@ export default function ProductCard({ product }: ProductCardProps) {
       
       <div className="p-6">
         <div className="text-[10px] uppercase tracking-widest text-brand-primary font-bold mb-1 opacity-70">
-          {product.itemType || product.category}
+          {product.item_type || product.itemType || product.category}
         </div>
-        <h3 className="text-lg font-heading text-brand-secondary mb-2 line-clamp-1">{product.itemName || product.name}</h3>
+        <h3 className="text-lg font-heading text-brand-secondary mb-2 line-clamp-1">{product.name || product.itemName}</h3>
         <div className="flex justify-between items-center">
-          <div className="text-xl font-bold text-brand-primary">₹{product.price}</div>
-          {product.standard?.className && (
-            <div className="text-xs text-gray-400">{product.standard.className}</div>
+          <div className="text-xl font-bold text-brand-primary">₹{product.price_paisa ? (product.price_paisa / 100).toFixed(0) : product.price}</div>
+          {product.standard_id?.class_name && (
+            <div className="text-xs text-gray-400">{product.standard_id.class_name}</div>
           )}
         </div>
       </div>

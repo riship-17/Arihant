@@ -22,9 +22,9 @@ export default function ProductDetailPage() {
       try {
         const res = await api.get(`/uniform-items/${id}`);
         setProduct(res.data);
-        if (res.data.sizes?.length > 0) {
+        if (res.data.variants?.length > 0) {
           // Select first available size
-          const available = res.data.sizes.find((s: any) => s.stock > 0);
+          const available = res.data.variants.find((s: any) => s.stock_qty > 0);
           if (available) setSelectedSize(available.size);
         }
       } catch (err) {
@@ -49,17 +49,17 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     addToCart({
       item_id: product._id,
-      item_name: product.itemName,
-      price: product.price,
+      item_name: product.name,
+      price: product.price_paisa / 100,
       selected_size: selectedSize,
       quantity,
-      image_url: product.imageUrl,
-      item_type: product.itemType
+      image_url: product.image_url,
+      item_type: product.item_type
     });
   };
 
-  const selectedSizeEntry = product.sizes.find((s: any) => s.size === selectedSize);
-  const maxStock = selectedSizeEntry?.stock ?? 0;
+  const selectedVariant = product.variants?.find((s: any) => s.size === selectedSize);
+  const maxStock = selectedVariant?.stock_qty ?? 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -76,8 +76,8 @@ export default function ProductDetailPage() {
             <div className="space-y-4">
             <div className="aspect-[4/5] bg-brand-bg/30 rounded-[40px] overflow-hidden shadow-2xl shadow-brand-primary/10 group">
               <img 
-                src={product.imageUrl || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"} 
-                alt={product.itemName} 
+                src={product.image_url || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"} 
+                alt={product.name} 
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"; }}
               />
@@ -87,10 +87,10 @@ export default function ProductDetailPage() {
             {/* Product Info */}
             <div>
               <div className="mb-8">
-                <div className="text-xs uppercase tracking-[0.2em] text-brand-primary font-bold mb-3">{product.itemType}</div>
-                <h1 className="text-4xl font-heading text-brand-secondary mb-4 leading-tight">{product.itemName}</h1>
+                <div className="text-xs uppercase tracking-[0.2em] text-brand-primary font-bold mb-3">{product.item_type}</div>
+                <h1 className="text-4xl font-heading text-brand-secondary mb-4 leading-tight">{product.name}</h1>
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="text-3xl font-bold text-brand-primary">₹{product.price}</div>
+                  <div className="text-3xl font-bold text-brand-primary">₹{product.price_paisa > 0 ? (product.price_paisa / 100).toFixed(0) : 'TBD'}</div>
                   <div className="px-3 py-1 bg-green-50 text-green-600 text-xs font-bold rounded-full border border-green-100 uppercase tracking-wider">In Stock</div>
                 </div>
                 <p className="text-gray-600 leading-relaxed mb-8">{product.description}</p>
@@ -102,15 +102,15 @@ export default function ProductDetailPage() {
                   <h3 className="font-heading text-brand-secondary">Select Size</h3>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {product.sizes.map((s: any) => (
+                  {(product.variants || []).map((s: any) => (
                     <button
                       key={s.size}
-                      disabled={s.stock === 0}
+                      disabled={s.stock_qty === 0}
                       onClick={() => {
                         setSelectedSize(s.size);
                         setQuantity(1);
                       }}
-                      className={`min-w-[50px] h-12 flex items-center justify-center rounded-xl font-medium transition-all ${s.stock === 0 ? 'opacity-30 line-through cursor-not-allowed' : selectedSize === s.size ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'bg-white border border-brand-primary/10 text-brand-secondary hover:border-brand-primary/40'}`}
+                      className={`min-w-[50px] h-12 flex items-center justify-center rounded-xl font-medium transition-all ${s.stock_qty === 0 ? 'opacity-30 line-through cursor-not-allowed' : selectedSize === s.size ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'bg-white border border-brand-primary/10 text-brand-secondary hover:border-brand-primary/40'}`}
                     >
                       {s.size}
                     </button>

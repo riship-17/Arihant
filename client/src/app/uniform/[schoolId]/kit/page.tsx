@@ -52,17 +52,13 @@ export default function CataloguePage() {
 
         // 2. Map gender label → schema value
         const genderMap: Record<string, string> = { Boy: "boy", Girl: "girl" };
-        const genderVal = genderMap[gender || ""] || "unisex";
+        const genderVal = genderMap[gender || ""] || "boy";
 
         // 3. Find matching standard
         const standards = schoolRes.data.standards || [];
-        const match =
-          standards.find(
-            (s: any) => s.className === `Grade ${classNum}` && s.gender === genderVal
-          ) ||
-          standards.find(
-            (s: any) => s.className === `Grade ${classNum}` && s.gender === "unisex"
-          );
+        const match = standards.find(
+          (s: any) => s.class_name === classNum && s.gender === genderVal
+        );
 
         if (!match) {
           setError("No uniform standard found for this class/gender combination.");
@@ -88,7 +84,7 @@ export default function CataloguePage() {
   }, [schoolId, gender, classNum]);
 
   // Filter items based on active tab
-  const filteredItems = items.filter((item) => (item.uniformType || "regular") === activeTab);
+  const filteredItems = items.filter((item) => (item.uniform_type || "regular") === activeTab);
 
   /* ── Empty state ── */
   if (!loading && (error || items.length === 0)) {
