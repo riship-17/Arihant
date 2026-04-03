@@ -1,13 +1,14 @@
 const mongoose = require('mongoose');
 
 const standardSchema = new mongoose.Schema({
-  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
-  className: { type: String, required: true }, // e.g. "Grade 5", "Class 10"
-  gender: { type: String, enum: ['boy', 'girl', 'unisex'], default: 'unisex' },
-  createdAt: { type: Date, default: Date.now }
+  school_id: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+  class_name: { type: String, required: true },
+  gender: { type: String, enum: ['boy', 'girl'], required: true },
+  division: { type: String, enum: ['primary', 'secondary', 'higher'], required: true },
+  is_active: { type: Boolean, default: true }
 });
 
 // Compound index to prevent duplicate class+gender per school
-standardSchema.index({ school: 1, className: 1, gender: 1 }, { unique: true });
+standardSchema.index({ school_id: 1, class_name: 1, gender: 1 }, { unique: true });
 
-module.exports = mongoose.model('Standard', standardSchema);
+module.exports = mongoose.model('SchoolStandard', standardSchema);

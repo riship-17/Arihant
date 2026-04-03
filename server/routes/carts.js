@@ -8,12 +8,13 @@ router.get('/', auth, async (req, res) => {
   try {
     let cart = await Cart.findOne({ user: req.user.id })
       .populate({
-        path: 'items.item',
-        populate: {
-          path: 'standard',
-          populate: { path: 'school', select: 'name logo' }
-        }
-      });
+        path: 'items.product',
+        populate: [
+          { path: 'standard_id', select: 'class_name gender division' },
+          { path: 'school_id', select: 'name logo area city' }
+        ]
+      })
+      .populate('items.variant');
 
     if (!cart) {
       cart = { user: req.user.id, items: [] };
@@ -28,7 +29,7 @@ router.get('/', auth, async (req, res) => {
 // Add item to cart (or update quantity)
 router.post('/add', auth, async (req, res) => {
   try {
-    const { itemId, size, quantity } = req.body;
+    const { productId, variantId, size, quantity } = req.body;
 
     let cart = await Cart.findOne({ user: req.user.id });
 
@@ -36,15 +37,15 @@ router.post('/add', auth, async (req, res) => {
       cart = new Cart({ user: req.user.id, items: [] });
     }
 
-    // Check if item+size already in cart
+    // Check if product+size already in cart
     const existingIndex = cart.items.findIndex(
-      ci => ci.item.toString() === itemId && ci.size === size
+      ci => ci.product.toString() === productId && ci.size === size
     );
 
     if (existingIndex > -1) {
       cart.items[existingIndex].quantity += quantity || 1;
     } else {
-      cart.items.push({ item: itemId, size, quantity: quantity || 1 });
+      cart.items.push({ product: productId, variant: variantId, size, quantity: quantity || 1 });
     }
 
     await cart.save();
@@ -55,13 +56,13 @@ router.post('/add', auth, async (req, res) => {
 });
 
 // Remove item from cart
-router.delete('/remove/:itemId/:size', auth, async (req, res) => {
+router.delete('/remove/:productId/:size', auth, async (req, res) => {
   try {
     const cart = await Cart.findOne({ user: req.user.id });
     if (!cart) return res.status(404).json({ message: 'Cart not found' });
 
     cart.items = cart.items.filter(
-      ci => !(ci.item.toString() === req.params.itemId && ci.size === req.params.size)
+      ci => !(ci.product.toString() === req.params.productId && ci.size === req.params.size)
     );
 
     await cart.save();

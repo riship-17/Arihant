@@ -2,13 +2,14 @@ const mongoose = require('mongoose');
 
 const schoolSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
-  board: { type: String, enum: ['CBSE', 'ICSE', 'State'], required: true },
+  area: { type: String, required: true },
   city: { type: String, required: true },
   state: { type: String, required: true },
+  board: { type: String },
   logo: { type: String },
   banner: { type: String },
-  isActive: { type: Boolean, default: true },
-  createdAt: { type: Date, default: Date.now }
+  is_active: { type: Boolean, default: true },
+  created_at: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('School', schoolSchema);

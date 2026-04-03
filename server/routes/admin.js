@@ -2,12 +2,12 @@ const express = require('express');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const Order = require('../models/Order');
-const UniformItem = require('../models/UniformItem');
+const Product = require('../models/Product');
+const ProductVariant = require('../models/ProductVariant');
 const { auth, admin } = require('../middleware/auth');
 const router = express.Router();
 
 // Cloudinary config
-// Needs to be provided in environment variables for production
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
   api_key: process.env.CLOUDINARY_API_KEY || '12345',
@@ -35,15 +35,14 @@ router.get('/stats', auth, admin, async (req, res) => {
     
     // Revenue
     const orders = await Order.find();
-    // Assuming we count all revenue or filter by 'paid' + COD 'pending'
     const revenue = orders.reduce((acc, order) => acc + order.totalAmount, 0);
 
-    const items = await UniformItem.find();
-    let lowStockCount = 0;
-    items.forEach(item => {
-      if (item.sizes.some(s => s.stock < 10)) {
-        lowStockCount++;
-      }
+    const productsCount = await Product.countDocuments({ is_active: true });
+
+    // Low stock: variants with stock_qty < 10
+    const lowStockCount = await ProductVariant.countDocuments({
+      stock_qty: { $lt: 10 },
+      is_available: true
     });
 
     const pendingOrders = await Order.countDocuments({ orderStatus: 'pending' });
@@ -51,7 +50,7 @@ router.get('/stats', auth, admin, async (req, res) => {
     res.json({
       totalOrders,
       revenue,
-      itemsCount: items.length,
+      productsCount,
       lowStock: lowStockCount,
       pendingOrders
     });
@@ -81,7 +80,6 @@ router.post('/upload-image', auth, admin, upload.single('image'), async (req, re
     uploadStream.end(req.file.buffer);
 
   } catch (error) {
-    // Multer errors get caught here if thrown
     res.status(500).json({ message: error.message });
   }
 });

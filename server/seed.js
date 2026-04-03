@@ -1,180 +1,643 @@
 const mongoose = require('mongoose');
-const School = require('./models/School');
-const Standard = require('./models/Standard');
-const UniformItem = require('./models/UniformItem');
 require('dotenv').config();
 
+// Import all models
+const School = require('./models/School');
+const SchoolStandard = require('./models/Standard');
+const Product = require('./models/Product');
+const ProductVariant = require('./models/ProductVariant');
+const Accessory = require('./models/Accessory');
+const Cart = require('./models/Cart');
+const Order = require('./models/Order');
+
+// ─────────────────────────────────────────────────────────────
+// SIZE DEFINITIONS
+// ─────────────────────────────────────────────────────────────
+const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const SHOE_SIZES = ['UK3', 'UK4', 'UK5', 'UK6', 'UK7', 'UK8', 'UK9', 'UK10'];
+const SOCK_SIZES = ['S', 'M', 'L'];
+
+// ─────────────────────────────────────────────────────────────
+// HELPER: determine size type from item_type and product name
+// ─────────────────────────────────────────────────────────────
+function getSizeType(itemType, productName) {
+  if (itemType === 'shoes') return 'shoes';
+  if (itemType === 'socks') return 'socks';
+  return 'clothing';
+}
+
+function getSizes(sizeType) {
+  switch (sizeType) {
+    case 'shoes': return SHOE_SIZES;
+    case 'socks': return SOCK_SIZES;
+    default: return CLOTHING_SIZES;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// HELPER: create a product and its variants
+// ─────────────────────────────────────────────────────────────
+async function createProductWithVariants(productData, sizeType) {
+  const product = await Product.create(productData);
+
+  const sizes = getSizes(sizeType);
+  const variants = sizes.map(size => ({
+    product_id: product._id,
+    size,
+    stock_qty: 0,
+    is_available: true
+  }));
+
+  await ProductVariant.insertMany(variants);
+  return { product, variantCount: variants.length };
+}
+
+// ─────────────────────────────────────────────────────────────
+// HELPER: create all products for a standard
+// ─────────────────────────────────────────────────────────────
+async function createProductsForStandard(schoolId, standardId, items) {
+  let productCount = 0;
+  let variantCount = 0;
+
+  for (const item of items) {
+    try {
+      const sizeType = getSizeType(item.item_type, item.name);
+      const result = await createProductWithVariants({
+        standard_id: standardId,
+        school_id: schoolId,
+        name: item.name,
+        item_type: item.item_type,
+        uniform_type: item.uniform_type,
+        price_paisa: 0,
+        image_url: null,
+        is_active: true
+      }, sizeType);
+      productCount++;
+      variantCount += result.variantCount;
+    } catch (err) {
+      console.error(`  ❌ Failed to insert product "${item.name}": ${err.message}`);
+    }
+  }
+
+  return { productCount, variantCount };
+}
+
+// ─────────────────────────────────────────────────────────────
+// MAIN SEED FUNCTION
+// ─────────────────────────────────────────────────────────────
 const seedDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/arihant_store');
-    console.log('Connected to MongoDB for seeding...');
+    // Connect to MongoDB
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('✅ Connected to MongoDB for seeding...\n');
 
-    // Clear all collections
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 1: DELETE ALL EXISTING MOCK DATA
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    // Clear order-related collections first (they reference others)
+    await Order.deleteMany({});
+    await Cart.deleteMany({});
+
+    // Clear product-related collections
+    await ProductVariant.deleteMany({});
+    await Product.deleteMany({});
+
+    // Clear school-related collections
+    await SchoolStandard.deleteMany({});
     await School.deleteMany({});
-    await Standard.deleteMany({});
-    await UniformItem.deleteMany({});
 
-    console.log('🗑️  Cleared existing data.');
+    // Clear accessories
+    await Accessory.deleteMany({});
 
-    // ─────────────────────────────────────────────
-    // 1. SCHOOLS
-    // ─────────────────────────────────────────────
-    const schools = await School.insertMany([
-      { name: 'Delhi Public School', board: 'CBSE', city: 'New Delhi', state: 'Delhi', logo: '/images/dps-logo.webp', banner: '/images/school-banner.png' },
-      { name: "St. Xavier's High School", board: 'ICSE', city: 'Mumbai', state: 'Maharashtra', logo: '/images/xavier-logo.webp', banner: '/images/school-banner.png' },
-      { name: 'Kendriya Vidyalaya', board: 'CBSE', city: 'Bangalore', state: 'Karnataka', logo: '/images/kv-logo.webp', banner: '/images/school-banner.png' },
-      { name: 'Modern Academy', board: 'ICSE', city: 'Lucknow', state: 'Uttar Pradesh', logo: '/images/modern-logo.webp', banner: '/images/school-banner.png' },
-      { name: 'Holy Cross School', board: 'State', city: 'Chennai', state: 'Tamil Nadu', logo: '/images/holycross-logo.webp', banner: '/images/school-banner.png' }
-    ]);
-    console.log(`✅ Inserted ${schools.length} schools.`);
-
-    // Helper to find school by name
-    const findSchool = (name) => schools.find(s => s.name === name);
-
-    // ─────────────────────────────────────────────
-    // 2. STANDARDS
-    // ─────────────────────────────────────────────
-    const standardsData = [];
-
-    // DPS — Grade 1-5 boy/girl, Grade 6-10 boy/girl
-    for (let i = 1; i <= 5; i++) {
-      standardsData.push({ school: findSchool('Delhi Public School')._id, className: `Grade ${i}`, gender: 'boy' });
-      standardsData.push({ school: findSchool('Delhi Public School')._id, className: `Grade ${i}`, gender: 'girl' });
-    }
-    for (let i = 6; i <= 10; i++) {
-      standardsData.push({ school: findSchool('Delhi Public School')._id, className: `Grade ${i}`, gender: 'boy' });
-      standardsData.push({ school: findSchool('Delhi Public School')._id, className: `Grade ${i}`, gender: 'girl' });
+    // Also clear legacy UniformItem collection if it exists
+    try {
+      await mongoose.connection.collection('uniformitems').drop();
+      console.log('🗑️  Dropped legacy uniformitems collection.');
+    } catch (e) {
+      // Collection may not exist, that's fine
     }
 
-    // St. Xavier's — Grade 1-8 unisex
-    for (let i = 1; i <= 8; i++) {
-      standardsData.push({ school: findSchool("St. Xavier's High School")._id, className: `Grade ${i}`, gender: 'unisex' });
-    }
+    console.log('🗑️  All mock data cleared.\n');
 
-    // KV — Grade 1-12 boy/girl
-    for (let i = 1; i <= 12; i++) {
-      standardsData.push({ school: findSchool('Kendriya Vidyalaya')._id, className: `Grade ${i}`, gender: 'boy' });
-      standardsData.push({ school: findSchool('Kendriya Vidyalaya')._id, className: `Grade ${i}`, gender: 'girl' });
-    }
+    // Counters
+    let totalProducts = 0;
+    let totalVariants = 0;
+    let totalStandards = 0;
 
-    // Modern Academy — Grade 1-5 unisex
-    for (let i = 1; i <= 5; i++) {
-      standardsData.push({ school: findSchool('Modern Academy')._id, className: `Grade ${i}`, gender: 'unisex' });
-    }
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // SCHOOL 1: JAMNABAH NARSEE SCHOOL
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const jns = await School.create({
+      name: 'Jamnabah Narsee School',
+      area: 'Kudasan',
+      city: 'Gandhinagar',
+      state: 'Gujarat',
+      is_active: true
+    });
 
-    // Holy Cross — Grade 1-10 boy/girl
-    for (let i = 1; i <= 10; i++) {
-      standardsData.push({ school: findSchool('Holy Cross School')._id, className: `Grade ${i}`, gender: 'boy' });
-      standardsData.push({ school: findSchool('Holy Cross School')._id, className: `Grade ${i}`, gender: 'girl' });
-    }
-
-    const standards = await Standard.insertMany(standardsData);
-    console.log(`✅ Inserted ${standards.length} standards.`);
-
-    // ─────────────────────────────────────────────
-    // 3. UNIFORM ITEMS
-    // ─────────────────────────────────────────────
-    const sizesSmall = [
-      { size: '22', stock: 10 }, { size: '24', stock: 15 }, { size: '26', stock: 20 },
-      { size: '28', stock: 12 }, { size: '30', stock: 8 }
-    ];
-    const sizesMedium = [
-      { size: '28', stock: 10 }, { size: '30', stock: 15 }, { size: '32', stock: 20 },
-      { size: '34', stock: 12 }, { size: '36', stock: 8 }
-    ];
-    const sizesAccessory = [
-      { size: 'S', stock: 25 }, { size: 'M', stock: 30 }, { size: 'L', stock: 20 }
-    ];
-
-    const uniformItemsData = [];
-
-    // Helper: create item template for a set of standards
-    const addItemsForStandards = (schoolName, genderFilter, items) => {
-      const schoolStandards = standards.filter(s => {
-        const school = schools.find(sc => sc._id.equals(s.school));
-        return school && school.name === schoolName && (genderFilter === null || s.gender === genderFilter);
-      });
-
-      for (const std of schoolStandards) {
-        for (const item of items) {
-          uniformItemsData.push({ ...item, standard: std._id });
-        }
-      }
-    };
-
-    // ── DPS Boys ──
-    addItemsForStandards('Delhi Public School', 'boy', [
-      { itemType: 'shirt', uniformType: 'regular', itemName: 'DPS White Shirt', description: 'Crisp white cotton shirt with DPS monogram', price: 650, sizes: sizesSmall, imageUrl: '/images/dps-shirt.webp' },
-      { itemType: 'pant', uniformType: 'regular', itemName: 'DPS Grey Trouser', description: 'Grey formal trouser with elastic waist', price: 550, sizes: sizesSmall, imageUrl: '/images/dps-pant.webp' },
-      { itemType: 'tie', uniformType: 'regular', itemName: 'DPS Striped Tie', description: 'Navy blue and gold striped tie', price: 200, sizes: sizesAccessory, imageUrl: '/images/dps-tie.webp' },
-      { itemType: 'belt', uniformType: 'regular', itemName: 'DPS Leather Belt', description: 'Black leather belt with DPS buckle', price: 250, sizes: sizesAccessory, imageUrl: '/images/dps-belt.webp' },
-      { itemType: 'socks', uniformType: 'regular', itemName: 'DPS White Socks', description: 'White ankle-length cotton socks (pair)', price: 80, sizes: sizesAccessory, imageUrl: '/images/dps-socks.webp' },
-      { itemType: 'shirt', uniformType: 'sports', itemName: 'DPS Sports T-Shirt', description: 'House color sports t-shirt', price: 450, sizes: sizesSmall, imageUrl: '/images/dps-shirt.webp' },
-      { itemType: 'pant', uniformType: 'sports', itemName: 'DPS Track Pants', description: 'Navy blue track pants', price: 600, sizes: sizesSmall, imageUrl: '/images/dps-pant.webp' }
+    // Nursery/KG — boy
+    const jns_nkg_boy = await SchoolStandard.create({
+      school_id: jns._id, class_name: 'Nursery/KG', gender: 'boy', division: 'primary', is_active: true
+    });
+    let res = await createProductsForStandard(jns._id, jns_nkg_boy._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Half Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    // ── DPS Girls ──
-    addItemsForStandards('Delhi Public School', 'girl', [
-      { itemType: 'shirt', itemName: 'DPS White Blouse', description: 'White cotton blouse with Peter Pan collar', price: 650, sizes: sizesSmall, imageUrl: '/images/dps-shirt.webp' },
-      { itemType: 'skirt', itemName: 'DPS Grey Skirt', description: 'Grey pleated skirt with elastic waist', price: 600, sizes: sizesSmall, imageUrl: '/images/dps-skirt.webp' },
-      { itemType: 'tie', itemName: 'DPS Ribbon Tie', description: 'Navy blue ribbon tie', price: 180, sizes: sizesAccessory, imageUrl: '/images/dps-tie.webp' },
-      { itemType: 'socks', itemName: 'DPS White Socks', description: 'White knee-length cotton socks (pair)', price: 90, sizes: sizesAccessory, imageUrl: '/images/dps-socks.webp' }
+    // Nursery/KG — girl
+    const jns_nkg_girl = await SchoolStandard.create({
+      school_id: jns._id, class_name: 'Nursery/KG', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(jns._id, jns_nkg_girl._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Skirt', item_type: 'skirt', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    // ── St. Xavier's Unisex ──
-    addItemsForStandards("St. Xavier's High School", 'unisex', [
-      { itemType: 'shirt', itemName: "Xavier's Blue Shirt", description: 'Sky blue half-sleeve shirt', price: 700, sizes: sizesSmall, imageUrl: '/images/xavier-shirt.webp' },
-      { itemType: 'pant', itemName: "Xavier's Navy Trouser", description: 'Navy blue formal trouser', price: 600, sizes: sizesSmall, imageUrl: '/images/xavier-pant.webp' },
-      { itemType: 'tie', itemName: "Xavier's Red Tie", description: 'Maroon and gold striped tie', price: 220, sizes: sizesAccessory, imageUrl: '/images/xavier-tie.webp' }
+    // Std 1 to 5 — boy
+    const jns_1to5_boy = await SchoolStandard.create({
+      school_id: jns._id, class_name: 'Std 1 to 5', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(jns._id, jns_1to5_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Half Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'House Jacket', item_type: 'jacket', uniform_type: 'house' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    // ── KV Boys ──
-    addItemsForStandards('Kendriya Vidyalaya', 'boy', [
-      { itemType: 'shirt', itemName: 'KV White Shirt', description: 'White shirt with KV logo', price: 500, sizes: sizesMedium, imageUrl: '/images/kv-shirt.webp' },
-      { itemType: 'pant', itemName: 'KV Blue Trouser', description: 'Navy blue trouser', price: 480, sizes: sizesMedium, imageUrl: '/images/kv-pant.webp' },
-      { itemType: 'tie', itemName: 'KV Blue Tie', description: 'Blue and white striped tie', price: 150, sizes: sizesAccessory, imageUrl: '/images/kv-tie.webp' }
+    // Std 1 to 5 — girl
+    const jns_1to5_girl = await SchoolStandard.create({
+      school_id: jns._id, class_name: 'Std 1 to 5', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(jns._id, jns_1to5_girl._id, [
+      { name: 'Top', item_type: 'top', uniform_type: 'regular' },
+      { name: 'Pina Frock', item_type: 'frock', uniform_type: 'regular' },
+      { name: 'House Top', item_type: 'top', uniform_type: 'house' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Black Cycling Shorts', item_type: 'shorts', uniform_type: 'sports' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    // ── KV Girls ──
-    addItemsForStandards('Kendriya Vidyalaya', 'girl', [
-      { itemType: 'shirt', uniformType: 'regular', itemName: 'KV White Blouse', description: 'White blouse with KV logo', price: 500, sizes: sizesMedium, imageUrl: '/images/kv-shirt.webp' },
-      { itemType: 'skirt', uniformType: 'regular', itemName: 'KV Blue Skirt', description: 'Navy blue pleated skirt', price: 520, sizes: sizesMedium, imageUrl: '/images/kv-skirt.webp' },
-      { itemType: 'tie', uniformType: 'regular', itemName: 'KV Blue Tie', description: 'Blue and white striped tie', price: 150, sizes: sizesAccessory, imageUrl: '/images/kv-tie.webp' },
-      { itemType: 'shirt', uniformType: 'sports', itemName: 'KV Sports House T-Shirt', description: 'House color sports t-shirt', price: 400, sizes: sizesMedium, imageUrl: '/images/kv-shirt.webp' }
+    // Std 6 to 10 — boy
+    const jns_6to10_boy = await SchoolStandard.create({
+      school_id: jns._id, class_name: 'Std 6 to 10', gender: 'boy', division: 'secondary', is_active: true
+    });
+    res = await createProductsForStandard(jns._id, jns_6to10_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Full Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'House Sports T-Shirt', item_type: 't-shirt', uniform_type: 'house' },
+      { name: 'House Sports Track', item_type: 'track', uniform_type: 'house' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    // ── Modern Academy Unisex ──
-    addItemsForStandards('Modern Academy', 'unisex', [
-      { itemType: 'shirt', itemName: 'Modern Academy Cream Shirt', description: 'Off-white cotton shirt', price: 750, sizes: sizesSmall, imageUrl: '/images/modern-shirt.webp' },
-      { itemType: 'pant', itemName: 'Modern Academy Brown Trouser', description: 'Chocolate brown trouser', price: 650, sizes: sizesSmall, imageUrl: '/images/modern-pant.webp' },
-      { itemType: 'belt', itemName: 'Modern Academy Brown Belt', description: 'Brown leather belt', price: 280, sizes: sizesAccessory, imageUrl: '/images/modern-belt.webp' }
+    // Std 6 to 10 — girl
+    const jns_6to10_girl = await SchoolStandard.create({
+      school_id: jns._id, class_name: 'Std 6 to 10', gender: 'girl', division: 'secondary', is_active: true
+    });
+    res = await createProductsForStandard(jns._id, jns_6to10_girl._id, [
+      { name: 'Top', item_type: 'top', uniform_type: 'regular' },
+      { name: 'Pina Frock', item_type: 'frock', uniform_type: 'regular' },
+      { name: 'House Pina Frock', item_type: 'frock', uniform_type: 'house' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Black Cycling Shorts', item_type: 'shorts', uniform_type: 'sports' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    // ── Holy Cross Boys ──
-    addItemsForStandards('Holy Cross School', 'boy', [
-      { itemType: 'shirt', itemName: 'Holy Cross White Shirt', description: 'White full-sleeve shirt with logo', price: 600, sizes: sizesSmall, imageUrl: '/images/hc-shirt.webp' },
-      { itemType: 'pant', itemName: 'Holy Cross Grey Trouser', description: 'Charcoal grey trouser', price: 550, sizes: sizesSmall, imageUrl: '/images/hc-pant.webp' },
-      { itemType: 'tie', itemName: 'Holy Cross Maroon Tie', description: 'Maroon solid tie', price: 200, sizes: sizesAccessory, imageUrl: '/images/hc-tie.webp' }
+    console.log('Inserted: Jamnabah Narsee School');
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // SCHOOL 2: KAMESHWAR INTERNATIONAL SCHOOL
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const kis = await School.create({
+      name: 'Kameshwar International School',
+      area: 'Kudasan',
+      city: 'Gandhinagar',
+      state: 'Gujarat',
+      is_active: true
+    });
+
+    // Nursery/KG — boy
+    const kis_nkg_boy = await SchoolStandard.create({
+      school_id: kis._id, class_name: 'Nursery/KG', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(kis._id, kis_nkg_boy._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Full Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    // ── Holy Cross Girls ──
-    addItemsForStandards('Holy Cross School', 'girl', [
-      { itemType: 'shirt', itemName: 'Holy Cross White Blouse', description: 'White blouse with lace collar', price: 620, sizes: sizesSmall, imageUrl: '/images/hc-shirt.webp' },
-      { itemType: 'skirt', itemName: 'Holy Cross Grey Skirt', description: 'Charcoal grey pinafore skirt', price: 580, sizes: sizesSmall, imageUrl: '/images/hc-skirt.webp' },
-      { itemType: 'socks', itemName: 'Holy Cross White Socks', description: 'White knee-high socks (pair)', price: 90, sizes: sizesAccessory, imageUrl: '/images/hc-socks.webp' }
+    // Nursery/KG — girl
+    const kis_nkg_girl = await SchoolStandard.create({
+      school_id: kis._id, class_name: 'Nursery/KG', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(kis._id, kis_nkg_girl._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Full Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
     ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    await UniformItem.insertMany(uniformItemsData);
-    console.log(`✅ Inserted ${uniformItemsData.length} uniform items.`);
+    // Std 1 to 8 — boy
+    const kis_1to8_boy = await SchoolStandard.create({
+      school_id: kis._id, class_name: 'Std 1 to 8', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(kis._id, kis_1to8_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Full Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Tie', item_type: 'tie', uniform_type: 'regular' },
+      { name: 'Belt', item_type: 'belt', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    console.log('\n🎉 Database seeded successfully!');
-    console.log(`   📚 ${schools.length} Schools`);
-    console.log(`   🎓 ${standards.length} Standards`);
-    console.log(`   👔 ${uniformItemsData.length} Uniform Items`);
+    // Std 1 to 8 — girl
+    const kis_1to8_girl = await SchoolStandard.create({
+      school_id: kis._id, class_name: 'Std 1 to 8', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(kis._id, kis_1to8_girl._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Full Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Tie', item_type: 'tie', uniform_type: 'regular' },
+      { name: 'Belt', item_type: 'belt', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
 
-    process.exit();
+    // Std 9 to 12 — boy
+    const kis_9to12_boy = await SchoolStandard.create({
+      school_id: kis._id, class_name: 'Std 9 to 12', gender: 'boy', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(kis._id, kis_9to12_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Trouser', item_type: 'trouser', uniform_type: 'regular' },
+      { name: 'Blazer', item_type: 'blazer', uniform_type: 'regular' },
+      { name: 'Tie', item_type: 'tie', uniform_type: 'regular' },
+      { name: 'Belt', item_type: 'belt', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 9 to 12 — girl
+    const kis_9to12_girl = await SchoolStandard.create({
+      school_id: kis._id, class_name: 'Std 9 to 12', gender: 'girl', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(kis._id, kis_9to12_girl._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Trouser', item_type: 'trouser', uniform_type: 'regular' },
+      { name: 'Blazer', item_type: 'blazer', uniform_type: 'regular' },
+      { name: 'Tie', item_type: 'tie', uniform_type: 'regular' },
+      { name: 'Belt', item_type: 'belt', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    console.log('Inserted: Kameshwar International School');
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // SCHOOL 3: ACHIEVER SCHOOL
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const ach = await School.create({
+      name: 'Achiever School',
+      area: 'Kudasan',
+      city: 'Gandhinagar',
+      state: 'Gujarat',
+      is_active: true
+    });
+
+    // Nursery/KG — boy
+    const ach_nkg_boy = await SchoolStandard.create({
+      school_id: ach._id, class_name: 'Nursery/KG', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(ach._id, ach_nkg_boy._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Capri', item_type: 'capri', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani / Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Nursery/KG — girl
+    const ach_nkg_girl = await SchoolStandard.create({
+      school_id: ach._id, class_name: 'Nursery/KG', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(ach._id, ach_nkg_girl._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Capri', item_type: 'capri', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani / Liberty Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 1 to 8 — boy
+    const ach_1to8_boy = await SchoolStandard.create({
+      school_id: ach._id, class_name: 'Std 1 to 8', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(ach._id, ach_1to8_boy._id, [
+      { name: 'T-Shirt (Pack of 3)', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks (Pack of 3)', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 1 to 8 — girl
+    const ach_1to8_girl = await SchoolStandard.create({
+      school_id: ach._id, class_name: 'Std 1 to 8', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(ach._id, ach_1to8_girl._id, [
+      { name: 'T-Shirt (Pack of 3)', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks (Pack of 3)', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 9 to 12 — boy
+    const ach_9to12_boy = await SchoolStandard.create({
+      school_id: ach._id, class_name: 'Std 9 to 12', gender: 'boy', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(ach._id, ach_9to12_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Trouser', item_type: 'trouser', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 9 to 12 — girl
+    const ach_9to12_girl = await SchoolStandard.create({
+      school_id: ach._id, class_name: 'Std 9 to 12', gender: 'girl', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(ach._id, ach_9to12_girl._id, [
+      { name: 'Top', item_type: 'top', uniform_type: 'regular' },
+      { name: 'Trouser', item_type: 'trouser', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Liberty / Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    console.log('Inserted: Achiever School');
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // SCHOOL 4: RADIANT SCHOOL
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const rad = await School.create({
+      name: 'Radiant School',
+      area: 'Sargiasan',
+      city: 'Gandhinagar',
+      state: 'Gujarat',
+      is_active: true
+    });
+
+    // Nursery/KG — boy (unisex items, separate standard row)
+    const rad_nkg_boy = await SchoolStandard.create({
+      school_id: rad._id, class_name: 'Nursery/KG', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(rad._id, rad_nkg_boy._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Half Pant Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Nursery/KG — girl (same items as boy, separate standard row)
+    const rad_nkg_girl = await SchoolStandard.create({
+      school_id: rad._id, class_name: 'Nursery/KG', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(rad._id, rad_nkg_girl._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Half Pant Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 1 to 8 — boy
+    const rad_1to8_boy = await SchoolStandard.create({
+      school_id: rad._id, class_name: 'Std 1 to 8', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(rad._id, rad_1to8_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Full Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Belt', item_type: 'belt', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 1 to 8 — girl
+    const rad_1to8_girl = await SchoolStandard.create({
+      school_id: rad._id, class_name: 'Std 1 to 8', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(rad._id, rad_1to8_girl._id, [
+      { name: 'Top', item_type: 'top', uniform_type: 'regular' },
+      { name: 'Pina Frock', item_type: 'frock', uniform_type: 'regular' },
+      { name: 'Belt', item_type: 'belt', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 9 to 12 — boy
+    const rad_9to12_boy = await SchoolStandard.create({
+      school_id: rad._id, class_name: 'Std 9 to 12', gender: 'boy', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(rad._id, rad_9to12_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Trouser', item_type: 'trouser', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 9 to 12 — girl
+    const rad_9to12_girl = await SchoolStandard.create({
+      school_id: rad._id, class_name: 'Std 9 to 12', gender: 'girl', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(rad._id, rad_9to12_girl._id, [
+      { name: 'Top', item_type: 'top', uniform_type: 'regular' },
+      { name: 'Trouser', item_type: 'trouser', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    console.log('Inserted: Radiant School');
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // SCHOOL 5: AMBA SCHOOL
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const amba = await School.create({
+      name: 'Amba School',
+      area: 'Sargiasan',
+      city: 'Gandhinagar',
+      state: 'Gujarat',
+      is_active: true
+    });
+
+    // Nursery/KG — boy
+    const amba_nkg_boy = await SchoolStandard.create({
+      school_id: amba._id, class_name: 'Nursery/KG', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(amba._id, amba_nkg_boy._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Half Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Nursery/KG — girl
+    const amba_nkg_girl = await SchoolStandard.create({
+      school_id: amba._id, class_name: 'Nursery/KG', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(amba._id, amba_nkg_girl._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Half Pant', item_type: 'pant', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 1 to 8 — boy
+    const amba_1to8_boy = await SchoolStandard.create({
+      school_id: amba._id, class_name: 'Std 1 to 8', gender: 'boy', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(amba._id, amba_1to8_boy._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 1 to 8 — girl
+    const amba_1to8_girl = await SchoolStandard.create({
+      school_id: amba._id, class_name: 'Std 1 to 8', gender: 'girl', division: 'primary', is_active: true
+    });
+    res = await createProductsForStandard(amba._id, amba_1to8_girl._id, [
+      { name: 'T-Shirt', item_type: 't-shirt', uniform_type: 'regular' },
+      { name: 'Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 9 to 12 — boy
+    const amba_9to12_boy = await SchoolStandard.create({
+      school_id: amba._id, class_name: 'Std 9 to 12', gender: 'boy', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(amba._id, amba_9to12_boy._id, [
+      { name: 'Shirt', item_type: 'shirt', uniform_type: 'regular' },
+      { name: 'Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    // Std 9 to 12 — girl
+    const amba_9to12_girl = await SchoolStandard.create({
+      school_id: amba._id, class_name: 'Std 9 to 12', gender: 'girl', division: 'higher', is_active: true
+    });
+    res = await createProductsForStandard(amba._id, amba_9to12_girl._id, [
+      { name: 'Top', item_type: 'top', uniform_type: 'regular' },
+      { name: 'Denim', item_type: 'denim', uniform_type: 'regular' },
+      { name: 'Socks', item_type: 'socks', uniform_type: 'regular' },
+      { name: 'Lakhani Shoes', item_type: 'shoes', uniform_type: 'regular' },
+      { name: 'Sports T-Shirt', item_type: 't-shirt', uniform_type: 'sports' },
+      { name: 'Sports Track', item_type: 'track', uniform_type: 'sports' }
+    ]);
+    totalProducts += res.productCount; totalVariants += res.variantCount; totalStandards++;
+
+    console.log('Inserted: Amba School');
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ACCESSORIES
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    await Accessory.insertMany([
+      { name: 'School Bag', category: 'bag', price_paisa: 0, image_url: null, is_active: true },
+      { name: 'Lunch Box', category: 'lunchbox', price_paisa: 0, image_url: null, is_active: true },
+      { name: 'Water Bottle', category: 'bottle', price_paisa: 0, image_url: null, is_active: true },
+      { name: 'Undergarments', category: 'innerwear', price_paisa: 0, image_url: null, is_active: true }
+    ]);
+    console.log('Inserted: Accessories\n');
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // FINAL SUMMARY
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const schools = await School.countDocuments();
+    const standards = await SchoolStandard.countDocuments();
+    const products = await Product.countDocuments();
+    const variants = await ProductVariant.countDocuments();
+    const accessories = await Accessory.countDocuments();
+
+    console.log('=== SEED COMPLETE ===');
+    console.log('Schools inserted:', schools);
+    console.log('Standards inserted:', standards);
+    console.log('Products inserted:', products);
+    console.log('Variants inserted:', variants);
+    console.log('Accessories inserted:', accessories);
+    console.log('Expected schools: 5');
+    console.log('Expected standards: 26');
+    console.log('Expected products: ~140');
+
+    await mongoose.disconnect();
+    console.log('\n✅ Disconnected from MongoDB.');
+    process.exit(0);
+
   } catch (err) {
     console.error('❌ Seed error:', err);
+    await mongoose.disconnect();
     process.exit(1);
   }
 };

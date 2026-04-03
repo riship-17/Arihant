@@ -3,14 +3,15 @@ const mongoose = require('mongoose');
 const orderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
-  standard: { type: mongoose.Schema.Types.ObjectId, ref: 'Standard' },
+  standard: { type: mongoose.Schema.Types.ObjectId, ref: 'SchoolStandard' },
   items: [{
-    item: { type: mongoose.Schema.Types.ObjectId, ref: 'UniformItem' },
+    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    variant: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductVariant' },
     itemName: String,       // snapshot
     itemType: String,       // snapshot
     size: String,
     quantity: Number,
-    price: Number           // snapshot of price at time of order
+    price_paisa: Number     // snapshot of price at time of order
   }],
   totalAmount: { type: Number, required: true },
   paymentStatus: {
@@ -25,6 +26,8 @@ const orderSchema = new mongoose.Schema({
   },
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment' },
   shippingAddress: {
+    fullName: String,
+    phone: String,
     street: String,
     city: String,
     pincode: String,
