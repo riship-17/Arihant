@@ -263,7 +263,6 @@ router.get('/orders', auth, admin, async (req, res) => {
 
 // Update order status and tracking
 const { sendEmail } = require('../utils/email');
-const SchoolContact = require('../models/SchoolContact'); // If this exists, otherwise we'll wrap in try-catch
 
 router.patch('/orders/:id/status', auth, admin, async (req, res) => {
   try {
@@ -287,33 +286,28 @@ router.patch('/orders/:id/status', auth, admin, async (req, res) => {
     
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Send email to school contact if confirmed
-    if (order_status === 'confirmed' && order.school_id) {
+    // Send email to the customer since SchoolContact does not exist
+    if (order_status === 'confirmed' && order.user_id && order.user_id.email) {
       try {
-        const contact = await SchoolContact.findOne({ school_id: order.school_id });
-        if (contact && contact.email) {
-          const itemsHtml = order.items.map(item => `
-            <p>${item.product_name_snapshot} - Size: ${item.size_snapshot} - Qty: ${item.quantity}</p>
-          `).join('');
-          
-          await sendEmail({
-            to: contact.email,
-            subject: `New Order Confirmed - ${order._id}`,
-            html: `
-              <h2>New Uniform Order</h2>
-              <p>Order ID: ${order._id}</p>
-              <p>Customer: ${order.user_id?.name || 'Guest'}</p>
-              <p>Phone: ${order.user_id?.phone || 'N/A'}</p>
-              <p>Address: ${order.address}</p>
-              <h3>Items:</h3>
-              ${itemsHtml}
-              <p>Total: ₹${order.total_paisa / 100}</p>
-            `
-          });
-        }
+        const itemsHtml = order.items.map(item => `
+          <p>${item.product_name_snapshot} - Size: ${item.size_snapshot} - Qty: ${item.quantity}</p>
+        `).join('');
+        
+        await sendEmail({
+          to: order.user_id.email,
+          subject: `Your Order is Confirmed - ${order._id}`,
+          html: `
+            <h2>Order Confirmed!</h2>
+            <p>Order ID: ${order._id}</p>
+            <p>Customer: ${order.user_id.name}</p>
+            <p>Address: ${order.address}</p>
+            <h3>Items:</h3>
+            ${itemsHtml}
+            <p>Total: ₹${order.total_paisa / 100}</p>
+          `
+        });
       } catch (emailErr) {
-        console.error("Failed to send school notification email:", emailErr);
-        // non-blocking
+        console.error("Failed to send order confirmation email:", emailErr);
       }
     }
     
