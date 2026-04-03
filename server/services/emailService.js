@@ -38,11 +38,14 @@ const sendOrderConfirmationEmails = async (order, user) => {
     const orderTotal = formatCurrency(order.totalAmount);
     
     // Email 1 — To the Customer
-    await resend.emails.send({
-      from: `Arihant Uniform Store <${FROM_EMAIL}>`,
-      to: user.email,
-      subject: `✅ Order Confirmed — Arihant Uniform Store (#${order._id})`,
-      html: `
+    if (!resend) {
+      console.warn('[Email Service] Resend not initialized. Skipping customer email.');
+    } else {
+      await resend.emails.send({
+        from: `Arihant Uniform Store <${FROM_EMAIL}>`,
+        to: user.email,
+        subject: `✅ Order Confirmed — Arihant Uniform Store (#${order._id})`,
+        html: `
         <div style="font-family: sans-serif; max-w-width: 600px; margin: 0 auto; color: #333;">
           <div style="background-color: #1a56db; padding: 20px; text-align: center; color: white;">
             <h2>Arihant Uniform Store</h2>
@@ -79,14 +82,14 @@ const sendOrderConfirmationEmails = async (order, user) => {
           </div>
         </div>
       `
-    });
+      });
 
-    // Email 2 — To the Store Owner
-    await resend.emails.send({
-      from: `Orders System <${FROM_EMAIL}>`,
-      to: ownerEmail,
-      subject: `🛒 New Order Received — #${order._id} | ${orderTotal}`,
-      html: `
+      // Email 2 — To the Store Owner
+      await resend.emails.send({
+        from: `Orders System <${FROM_EMAIL}>`,
+        to: ownerEmail,
+        subject: `🛒 New Order Received — #${order._id} | ${orderTotal}`,
+        html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
           <h2>New Order Received!</h2>
           <p><strong>Order ID:</strong> ${order._id}</p>
@@ -114,11 +117,12 @@ const sendOrderConfirmationEmails = async (order, user) => {
           </a>
         </div>
       `
-    });
+      });
+    }
 
-    console.log(`[Email Service] Confirmation emails sent for order ${order._id}`);
+    console.log(`[Email Service] Confirmation process handled for order ${order._id}`);
   } catch (err) {
-    console.error('[Email Service] Failed to send order confirmation emails', err);
+    console.error('[Email Service] Failed in sendOrderConfirmationEmails', err);
   }
 };
 
@@ -126,8 +130,12 @@ const sendStatusUpdateEmail = async (order, user) => {
   try {
     const address = order.shippingAddress;
     const itemsTable = generateOrderTable(order.items);
-    const orderTotal = formatCurrency(order.totalAmount);
     
+    if (!resend) {
+      console.warn('[Email Service] Resend not initialized. Skipping status update email.');
+      return;
+    }
+
     await resend.emails.send({
       from: `Arihant Uniform Store <${FROM_EMAIL}>`,
       to: user.email,
@@ -160,7 +168,7 @@ const sendStatusUpdateEmail = async (order, user) => {
     });
     console.log(`[Email Service] Status update email sent for order ${order._id}`);
   } catch (err) {
-    console.error('[Email Service] Failed to send status update email', err);
+    console.error('[Email Service] Failed sendStatusUpdateEmail', err);
   }
 };
 
