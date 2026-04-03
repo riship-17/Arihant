@@ -57,20 +57,23 @@ export default function CheckoutPage() {
         totalAmount: subtotal,
       };
 
-      // 1. Create order
-      const res = await api.post('/orders', orderData);
-      const order = res.data;
-
-      // 2. COD flow
+      // 1. COD flow
       if (paymentMethod === 'COD') {
+        const res = await api.post('/orders', { orderData });
+        const order = res.data;
         clearCart();
         router.push(`/orders/success?id=${order._id}`);
         return;
       }
 
-      // 3. Razorpay flow
-      const rzpRes = await api.post('/payments/create-order', { orderId: order._id });
-      const { rzpOrder } = rzpRes.data;
+      // 2. Razorpay flow
+      // Call create-razorpay-order
+      const rzpRes = await api.post('/orders/create-razorpay-order', {
+        amount: subtotal * 100, // Pass amount in paisa
+        currency: 'INR',
+        receipt: `receipt_${Date.now()}`
+      });
+      const rzpOrder = rzpRes.data;
 
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_123",
@@ -81,17 +84,18 @@ export default function CheckoutPage() {
         order_id: rzpOrder.id,
         handler: async function (response: any) {
           try {
-            await api.post('/payments/verify', {
+            const verifyRes = await api.post('/orders/verify-payment', {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_signature: response.razorpay_signature,
-              orderId: order._id
+              orderData
             });
+            const successData = verifyRes.data;
             clearCart();
-            router.push(`/orders/success?id=${order._id}`);
+            router.push(`/orders/success?id=${successData.orderId}`);
           } catch (err: any) {
-            console.error(err);
-            alert(err.response?.data?.message || "Payment verification failed. Please contact us.");
+            console.error("Payment verification failed:", err);
+            alert(err.response?.data?.message || "Payment verification failed. Please contact support.");
           }
         },
         prefill: {
@@ -99,10 +103,10 @@ export default function CheckoutPage() {
           contact: shippingAddress.phone,
           email: user?.email || ""
         },
-        theme: { color: "#2b3a55" }
+        theme: { color: "#1a56db" }
       };
 
-      const razorpayInstance = new (window as any).Razorpay(options);
+      const razorpayInstance = new window.Razorpay(options);
       razorpayInstance.on('payment.failed', function (response: any) {
         alert("Payment failed: " + response.error.description + ". Please try Again.");
       });
