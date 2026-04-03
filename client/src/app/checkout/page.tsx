@@ -62,7 +62,7 @@ export default function CheckoutPage() {
         const res = await api.post('/orders', { orderData });
         const order = res.data;
         clearCart();
-        router.push(`/orders/success?id=${order._id}`);
+        router.push(`/order-success?id=${order._id}`);
         return;
       }
 
@@ -92,10 +92,11 @@ export default function CheckoutPage() {
             });
             const successData = verifyRes.data;
             clearCart();
-            router.push(`/orders/success?id=${successData.orderId}`);
+            router.push(`/order-success?id=${successData.orderId}`);
           } catch (err: any) {
             console.error("Payment verification failed:", err);
-            alert(err.response?.data?.message || "Payment verification failed. Please contact support.");
+            const errorMsg = err.response?.data?.message || err.message || "Payment verification failed.";
+            alert(`Oops! ${errorMsg}\nPlease contact support if your money was deducted.`);
           }
         },
         prefill: {
@@ -108,13 +109,15 @@ export default function CheckoutPage() {
 
       const razorpayInstance = new window.Razorpay(options);
       razorpayInstance.on('payment.failed', function (response: any) {
-        alert("Payment failed: " + response.error.description + ". Please try Again.");
+        console.error("Razorpay Payment Failed:", response.error);
+        alert(`Payment Failed: ${response.error.description}\nCode: ${response.error.code}`);
       });
       razorpayInstance.open();
 
     } catch (err: any) {
       console.error("Order error:", err);
-      alert(err.response?.data?.message || "Failed to process order. Please try again.");
+      const errorMsg = err.response?.data?.message || err.message || "An unexpected error occurred.";
+      alert(`Oops! ${errorMsg}\n\nPlease try again or contact us.`);
     } finally {
       setLoading(false);
     }
