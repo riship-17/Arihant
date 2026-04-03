@@ -21,7 +21,7 @@ interface CheckoutState {
   resetCheckout: () => void;
 }
 
-const initialAddress = {
+const initialAddress: Address = {
   fullName: '',
   phone: '',
   addressLine1: '',
@@ -49,7 +49,11 @@ export const useCheckoutStore = create<CheckoutState>()(
 
       setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
 
-      resetCheckout: () => set(initialState),
+      resetCheckout: () => {
+        set(initialState);
+        // Also clear the persisted storage
+        localStorage.removeItem('arihant-checkout-storage');
+      },
     }),
     {
       name: 'arihant-checkout-storage',

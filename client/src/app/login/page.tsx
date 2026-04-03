@@ -7,11 +7,19 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+import { useCheckoutStore } from "@/store/checkoutStore";
+import { useUniformStore } from "@/store/uniformStore";
+import { useFilterStore } from "@/store/filterStore";
+import { useCart } from "@/context/CartContext";
 import { LogIn, User } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const resetCheckout = useCheckoutStore((state) => state.resetCheckout);
+  const resetUniformFlow = useUniformStore((state) => state.resetUniformFlow);
+  const clearFilters = useFilterStore((state) => state.clearFilters);
+  const { clearCart } = useCart();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,9 +32,20 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // 1. Clear any previous user's stale state BEFORE login
+      clearCart();
+      resetCheckout();
+      resetUniformFlow();
+      clearFilters();
+
+      // 2. Call login API
       const res = await api.post("/auth/login", { email, password });
+      
+      // 3. Set new user — CartContext will auto-load this user's cart
       login(res.data.user, res.data.token);
-      router.push("/checkout"); // Redirect to checkout or home
+      
+      // 4. Navigate to home, not to where previous user was
+      router.push("/");
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || "Invalid credentials");

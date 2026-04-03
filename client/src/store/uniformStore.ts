@@ -12,19 +12,48 @@ interface UniformState {
 }
 
 const initialState = {
-  schoolId: null,
-  gender: null,
-  classRange: null,
+  schoolId: null as string | null,
+  gender: null as string | null,
+  classRange: null as string | null,
 };
 
-export const useUniformStore = create<UniformState>((set) => ({
-  ...initialState,
+// Load from sessionStorage on init
+function loadFromSession(): typeof initialState {
+  if (typeof window === 'undefined') return initialState;
+  try {
+    const raw = sessionStorage.getItem('arihant-uniform-flow');
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return initialState;
+}
 
-  setSchoolId: (schoolId) => set({ schoolId }),
+function saveToSession(state: typeof initialState) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem('arihant-uniform-flow', JSON.stringify(state));
+  } catch { /* ignore */ }
+}
+
+export const useUniformStore = create<UniformState>((set, get) => ({
+  ...loadFromSession(),
+
+  setSchoolId: (schoolId) => {
+    set({ schoolId });
+    saveToSession({ ...get(), schoolId });
+  },
   
-  setGender: (gender) => set({ gender }),
+  setGender: (gender) => {
+    set({ gender });
+    saveToSession({ ...get(), gender });
+  },
   
-  setClassRange: (classRange) => set({ classRange }),
+  setClassRange: (classRange) => {
+    set({ classRange });
+    saveToSession({ ...get(), classRange });
+  },
   
-  resetUniformFlow: () => set(initialState),
+  resetUniformFlow: () => {
+    set(initialState);
+    sessionStorage.removeItem('arihant-uniform-flow');
+  },
 }));

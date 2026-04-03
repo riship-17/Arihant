@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { useAuthStore } from "@/store/authStore";
 
 /* ───────────────── types ───────────────── */
 export interface CartItem {
@@ -27,7 +28,33 @@ interface CartContextValue {
   isHydrated: boolean;
 }
 
-const STORAGE_KEY = "arihant-cart-v3";
+/* ───────────────── helpers ───────────────── */
+function getCartKey(userId: string | null): string {
+  return userId ? `arihant-cart-${userId}` : 'arihant-cart-guest';
+}
+
+function loadCartFromStorage(userId: string | null): CartItem[] {
+  try {
+    const key = getCartKey(userId);
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err) {
+    console.error("Cart hydration failed:", err);
+  }
+  return [];
+}
+
+function saveCartToStorage(userId: string | null, items: CartItem[]) {
+  const key = getCartKey(userId);
+  if (items.length === 0) {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, JSON.stringify(items));
+  }
+}
 
 /* ───────────────── context ───────────────── */
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -35,31 +62,48 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Hydrate from localStorage on mount
+  // Watch auth store for user changes
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // Detect user change and reload cart
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setItems(parsed);
-      }
-    } catch (err) {
-      console.error("Cart hydration failed:", err);
-    }
-    setIsHydrated(true);
-  }, []);
+    const newUserId = isAuthenticated && user ? user.id : null;
 
-  // Persist to localStorage on change
+    // If user changed, load new user's cart
+    if (newUserId !== currentUserId) {
+      // If we had a previous user, save their cart first
+      if (isHydrated && currentUserId !== null) {
+        saveCartToStorage(currentUserId, items);
+      }
+
+      setCurrentUserId(newUserId);
+
+      // Load the new user's cart (or guest cart)
+      const newCart = loadCartFromStorage(newUserId);
+      setItems(newCart);
+    }
+
+    if (!isHydrated) {
+      // Initial hydration
+      const initialUserId = isAuthenticated && user ? user.id : null;
+      setCurrentUserId(initialUserId);
+      setItems(loadCartFromStorage(initialUserId));
+      setIsHydrated(true);
+    }
+  }, [user, isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist to localStorage on change (only after hydration)
   useEffect(() => {
     if (isHydrated) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      saveCartToStorage(currentUserId, items);
     }
-  }, [items, isHydrated]);
+  }, [items, isHydrated, currentUserId]);
 
   const addToCart = useCallback((entry: Omit<CartItem, "subtotal">) => {
     setItems((prev) => {
-      // Ensure IDs are strings for comparison
       const entryId = String(entry.item_id);
       
       const idx = prev.findIndex(
@@ -78,11 +122,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity: newQty, 
           subtotal: price * newQty 
         };
-        console.log("Cart: Incremented quantity for", entry.item_name);
         return updated;
       }
       
-      console.log("Cart: Added new item", entry.item_name);
       return [...prev, { 
         ...entry, 
         item_id: entryId,
@@ -117,8 +159,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => {
     setItems([]);
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
+    // Remove current user's cart from storage
+    const key = getCartKey(currentUserId);
+    localStorage.removeItem(key);
+  }, [currentUserId]);
 
   const totalItems = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
   const totalPrice = items.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0);

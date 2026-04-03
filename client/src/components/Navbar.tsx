@@ -9,7 +9,8 @@ import { useRouter, usePathname } from "next/navigation";
 
 export default function Navbar() {
   const { totalItems, isHydrated: cartHydrated } = useCart();
-  const { isAuthenticated, logout, user } = useAuthStore();
+  const { isAuthenticated, fullLogout, user } = useAuthStore();
+  const { clearCart } = useCart();
   const [isHydrated, setIsHydrated] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
@@ -21,7 +22,8 @@ export default function Navbar() {
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const handleLogout = () => {
-    logout();
+    clearCart();      // wipe cart state + storage
+    fullLogout();     // reset auth + checkout + uniform + filter + all storage
     router.push("/");
   };
 

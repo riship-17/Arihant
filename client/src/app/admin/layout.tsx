@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, fullLogout } = useAuthStore();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -43,7 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const handleLogout = () => {
-    logout();
+    fullLogout();
     router.push("/");
   };
 

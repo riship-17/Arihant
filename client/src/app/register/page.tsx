@@ -7,11 +7,19 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+import { useCheckoutStore } from "@/store/checkoutStore";
+import { useUniformStore } from "@/store/uniformStore";
+import { useFilterStore } from "@/store/filterStore";
+import { useCart } from "@/context/CartContext";
 import { UserPlus, User } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const resetCheckout = useCheckoutStore((state) => state.resetCheckout);
+  const resetUniformFlow = useUniformStore((state) => state.resetUniformFlow);
+  const clearFilters = useFilterStore((state) => state.clearFilters);
+  const { clearCart } = useCart();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -34,6 +42,12 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
+      // Clear any previous user's stale state
+      clearCart();
+      resetCheckout();
+      resetUniformFlow();
+      clearFilters();
+
       const res = await api.post("/auth/register", {
         name: formData.name,
         email: formData.email,
@@ -42,7 +56,7 @@ export default function RegisterPage() {
       });
       // Auto-login after register
       login(res.data.user, res.data.token);
-      router.push("/checkout");
+      router.push("/");
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.message || "Something went wrong");
