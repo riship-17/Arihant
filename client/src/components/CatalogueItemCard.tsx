@@ -12,12 +12,25 @@ interface VariantEntry {
   is_available: boolean;
 }
 
+interface GalleryImage {
+  url: string;
+  public_id?: string;
+  is_primary?: boolean;
+  attribution?: {
+    photographer?: string;
+    photographer_url?: string;
+    source?: string;
+  };
+}
+
 interface CatalogueItem {
   _id: string;
   name: string;
   item_type: string;
   price_paisa: number;
-  image_url: string;
+  image_url?: string;
+  primary_image?: string;
+  images?: GalleryImage[];
   variants: VariantEntry[];
 }
 
@@ -61,7 +74,7 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
       item_id: item._id,
       item_name: item.name,
       item_type: item.item_type,
-      image_url: item.image_url,
+      image_url: item.primary_image || item.image_url || '',
       price: item.price_paisa / 100,
       selected_size: selectedSize,
       quantity,
@@ -94,7 +107,7 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
       {/* ─── Image ─── */}
       <div className="relative aspect-[4/5] bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden group">
         <img
-          src={item.image_url || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"}
+          src={item.primary_image || item.image_url || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800"}
           alt={item.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           onError={(e) => {
@@ -102,6 +115,13 @@ export default function CatalogueItemCard({ item }: { item: CatalogueItem }) {
               "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800";
           }}
         />
+
+        {/* image count badge */}
+        {item.images && item.images.length > 1 && (
+          <span className="absolute top-4 right-4 px-2 py-1 text-[10px] uppercase font-bold tracking-wider rounded-full bg-black/50 text-white backdrop-blur-sm">
+            {item.images.length} photos
+          </span>
+        )}
 
         {/* type badge */}
         <span

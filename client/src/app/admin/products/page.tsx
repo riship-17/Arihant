@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { Plus, Edit, Package, ImageIcon, Save } from "lucide-react";
+import { Plus, Edit, Package, ImageIcon, Save, Download, Loader2, CheckCircle } from "lucide-react";
 import { InlineSpinner } from "@/components/PageSpinner";
 import ErrorBanner from "@/components/ErrorBanner";
 import EmptyState from "@/components/EmptyState";
@@ -22,6 +22,12 @@ export default function AdminProducts() {
   // Variant Stock edits state
   const [stockValues, setStockValues] = useState<Record<string, number>>({});
   const [savingStockForId, setSavingStockForId] = useState<string | null>(null);
+
+  // Image fetch states
+  const [fetchingImageForId, setFetchingImageForId] = useState<string | null>(null);
+  const [fetchedIds, setFetchedIds] = useState<Set<string>>(new Set());
+  const [bulkFetching, setBulkFetching] = useState(false);
+  const [bulkResult, setBulkResult] = useState<any | null>(null);
 
   // Filters
   const [filterSchool, setFilterSchool] = useState("");
@@ -193,6 +199,43 @@ export default function AdminProducts() {
     }
   };
 
+  const handleFetchImages = async (productId: string) => {
+    setFetchingImageForId(productId);
+    try {
+      const res = await api.post(`/admin/products/${productId}/fetch-images`, { imageCount: 4 });
+      // Update local state with new images
+      setItems(prev => prev.map(p => 
+        p._id === productId 
+          ? { ...p, images: res.data.images, primary_image: res.data.images[0]?.url, image_url: res.data.images[0]?.url }
+          : p
+      ));
+      setFetchedIds(prev => new Set(prev).add(productId));
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to fetch images. Check Unsplash/Cloudinary config.");
+    } finally {
+      setFetchingImageForId(null);
+    }
+  };
+
+  const handleBulkFetchImages = async () => {
+    if (!filterSchool) return alert("Please select a school first to bulk fetch images.");
+    if (!window.confirm('This will fetch images for all products in this school that don\'t have images yet. This may take several minutes. Continue?')) return;
+    
+    setBulkFetching(true);
+    setBulkResult(null);
+    try {
+      const res = await api.post(`/admin/schools/${filterSchool}/fetch-all-images`);
+      setBulkResult(res.data);
+      fetchItems(); // reload
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || "Bulk image fetch failed.");
+    } finally {
+      setBulkFetching(false);
+    }
+  };
+
   const openAddForm = () => {
     setFormData(emptyForm);
     setStandards([]);
@@ -243,7 +286,30 @@ export default function AdminProducts() {
             <option key={sch._id} value={sch._id}>{sch.name}</option>
           ))}
         </select>
+        {filterSchool && (
+          <button
+            onClick={handleBulkFetchImages}
+            disabled={bulkFetching}
+            className="ml-auto bg-brand-accent text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-brand-accent/90 transition-all disabled:opacity-50"
+          >
+            {bulkFetching ? (
+              <><Loader2 size={16} className="animate-spin" /> Fetching all images...</>
+            ) : (
+              <><Download size={16} /> Fetch All Images</>
+            )}
+          </button>
+        )}
       </div>
+      {bulkResult && (
+        <div className="bg-brand-bg/50 border border-brand-primary/10 rounded-2xl p-4 mx-6 -mt-2 mb-4 text-sm">
+          <p className="font-bold text-brand-secondary">
+            Bulk Fetch Complete: {bulkResult.success_count} succeeded, {bulkResult.failed_count} failed out of {bulkResult.total}
+          </p>
+          {bulkResult.failed?.length > 0 && (
+            <p className="text-gray-500 mt-1">Failed: {bulkResult.failed.join(', ')}</p>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-b-3xl p-6 shadow-sm border border-t-0 border-gray-100 min-h-[400px]">
         {loading ? (
@@ -283,8 +349,15 @@ export default function AdminProducts() {
                   <tr key={item._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors align-top">
                     <td className="py-4 font-bold text-brand-secondary">
                       <div className="flex items-start gap-3">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+                        {(item.primary_image || item.image_url) ? (
+                          <div className="relative">
+                            <img src={item.primary_image || item.image_url} alt={item.name} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
+                            {item.images?.length > 0 && (
+                              <span className="absolute -top-1 -right-1 w-5 h-5 bg-brand-primary text-white text-[9px] rounded-full flex items-center justify-center font-bold">
+                                {item.images.length}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400"><ImageIcon size={16}/></div>
                         )}
@@ -338,6 +411,26 @@ export default function AdminProducts() {
                       </button>
                     </td>
                     <td className="py-4 text-right flex justify-end gap-2">
+                      <button
+                        onClick={() => handleFetchImages(item._id)}
+                        disabled={fetchingImageForId === item._id || fetchedIds.has(item._id)}
+                        title="Fetch images from Unsplash"
+                        className={`p-2 rounded-full inline-flex transition-colors cursor-pointer text-sm font-bold ${
+                          fetchedIds.has(item._id)
+                            ? 'text-emerald-500 bg-emerald-50'
+                            : fetchingImageForId === item._id
+                              ? 'text-brand-accent bg-brand-accent/10'
+                              : 'text-brand-accent hover:bg-brand-accent/10'
+                        }`}
+                      >
+                        {fetchingImageForId === item._id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : fetchedIds.has(item._id) ? (
+                          <CheckCircle size={16} />
+                        ) : (
+                          <Download size={16} />
+                        )}
+                      </button>
                        <button
                         onClick={() => openEditForm(item)}
                         className="text-brand-primary hover:bg-brand-primary/10 p-2 rounded-full inline-flex transition-colors cursor-pointer"

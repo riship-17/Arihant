@@ -29,6 +29,10 @@ router.get('/', async (req, res) => {
     const result = products.map(p => {
       const pObj = p.toObject();
       pObj.variants = allVariants.filter(v => v.product_id.equals(p._id));
+      // Set primary_image fallback for backward compatibility
+      if (!pObj.primary_image && pObj.image_url) {
+        pObj.primary_image = pObj.image_url;
+      }
       return pObj;
     });
 

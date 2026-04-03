@@ -339,4 +339,123 @@ router.patch('/orders/:id/status', auth, admin, async (req, res) => {
   }
 });
 
+// ==============================
+// IMAGE PIPELINE (Unsplash → Cloudinary)
+// ==============================
+const { fetchAndStoreImages } = require('../services/imagePipelineService');
+
+// Fetch images for a single product
+router.post('/products/:productId/fetch-images', auth, admin, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const { imageCount = 4 } = req.body;
+
+    // Run the full pipeline
+    const gallery = await fetchAndStoreImages(
+      product.name,
+      product._id.toString(),
+      Math.min(imageCount, 5) // cap at 5
+    );
+
+    if (gallery.length === 0) {
+      return res.status(422).json({
+        message: 'No images found or upload failed. Try again later.',
+        itemName: product.name
+      });
+    }
+
+    // Save gallery to product
+    product.images = gallery;
+    product.primary_image = gallery[0].url;
+    product.image_url = gallery[0].url; // keep legacy field in sync
+    await product.save();
+
+    res.json({
+      message: `${gallery.length} images fetched and stored successfully`,
+      product_id: product._id,
+      images: gallery
+    });
+
+  } catch (error) {
+    console.error('[Admin] Image fetch error:', error);
+    res.status(500).json({
+      message: 'Image fetch failed',
+      error: error.message
+    });
+  }
+});
+
+// Bulk fetch images for all products in a school (that don't have images yet)
+router.post('/schools/:schoolId/fetch-all-images', auth, admin, async (req, res) => {
+  try {
+    const products = await Product.find({
+      school_id: req.params.schoolId,
+      is_active: true,
+      $or: [
+        { images: { $exists: false } },
+        { images: { $size: 0 } },
+        { primary_image: null }
+      ]
+    });
+
+    if (products.length === 0) {
+      return res.json({
+        message: 'All products already have images',
+        total: 0,
+        success_count: 0,
+        failed_count: 0
+      });
+    }
+
+    const results = { success: [], failed: [] };
+
+    // Process one by one to respect Unsplash rate limits
+    for (const product of products) {
+      try {
+        // Wait 1.2 seconds between requests
+        await new Promise(resolve => setTimeout(resolve, 1200));
+
+        const gallery = await fetchAndStoreImages(
+          product.name,
+          product._id.toString(),
+          4
+        );
+
+        if (gallery.length > 0) {
+          product.images = gallery;
+          product.primary_image = gallery[0].url;
+          product.image_url = gallery[0].url;
+          await product.save();
+          results.success.push(product.name);
+        } else {
+          results.failed.push(product.name);
+        }
+      } catch (err) {
+        console.error(`[Bulk] Failed for "${product.name}":`, err.message);
+        results.failed.push(product.name);
+      }
+    }
+
+    res.json({
+      message: 'Bulk image fetch complete',
+      total: products.length,
+      success_count: results.success.length,
+      failed_count: results.failed.length,
+      success: results.success,
+      failed: results.failed
+    });
+
+  } catch (error) {
+    console.error('[Admin] Bulk fetch error:', error);
+    res.status(500).json({
+      message: 'Bulk fetch failed',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
