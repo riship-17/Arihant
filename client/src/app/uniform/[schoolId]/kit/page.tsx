@@ -42,8 +42,10 @@ export default function CataloguePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"regular" | "sports">("regular");
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     const fetchItems = async () => {
       try {
         // 1. Get school info (with populated standards)
@@ -146,7 +148,7 @@ export default function CataloguePage() {
                 {schoolData?.name || "School"} Uniforms
               </h1>
               <p className="text-gray-500 mt-1">
-                Class {classNum} • {gender}
+                {isMounted ? `Class ${classNum} • ${gender}` : "Loading..."}
                 {!loading && (
                   <span className="ml-2 text-brand-primary font-semibold">
                     ({items.length} {items.length === 1 ? "item" : "items"})
