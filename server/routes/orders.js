@@ -32,6 +32,7 @@ router.post('/', auth, orderRules, validate, async (req, res) => {
     const { items, shippingAddress, paymentMethod } = req.body;
 
     if (!items || items.length === 0) {
+      console.log("400 ERROR: Cart empty");
       return res.status(400).json({ message: 'Your cart is empty.' });
     }
 
@@ -40,14 +41,27 @@ router.post('/', auth, orderRules, validate, async (req, res) => {
 
     for (const ci of items) {
       const dbProduct = await Product.findById(ci.product);
-      if (!dbProduct) return res.status(404).json({ message: 'Item not found in our catalogue. Please refresh your cart.' });
-      if (!dbProduct.is_active) return res.status(400).json({ message: `"${dbProduct.name}" is no longer available.` });
+      if (!dbProduct) {
+        console.log("404 ERROR: Item not found", ci.product);
+        return res.status(404).json({ message: 'Item not found in our catalogue. Please refresh your cart.' });
+      }
+      if (!dbProduct.is_active) {
+        console.log("400 ERROR: item not active", dbProduct.name);
+        return res.status(400).json({ message: `"${dbProduct.name}" is no longer available.` });
+      }
 
       // Find the variant for stock check
       const variant = await ProductVariant.findOne({ product_id: dbProduct._id, size: ci.size });
-      if (!variant) return res.status(400).json({ message: `Size ${ci.size} is not available for ${dbProduct.name}.` });
-      if (!variant.is_available) return res.status(400).json({ message: `Size ${ci.size} for ${dbProduct.name} is currently out of stock.` });
+      if (!variant) {
+        console.log("400 ERROR: Size variant missing", ci.size);
+        return res.status(400).json({ message: `Size ${ci.size} is not available for ${dbProduct.name}.` });
+      }
+      if (!variant.is_available) {
+        console.log("400 ERROR: variant not available", ci.size);
+        return res.status(400).json({ message: `Size ${ci.size} for ${dbProduct.name} is currently out of stock.` });
+      }
       if (variant.stock_qty < ci.quantity) {
+        console.log("400 ERROR: low stock", variant.stock_qty, ci.quantity);
         return res.status(400).json({ message: `Insufficient stock for ${dbProduct.name} (${ci.size}). Only ${variant.stock_qty} left.` });
       }
 
@@ -86,7 +100,8 @@ router.post('/', auth, orderRules, validate, async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("400 CAUGHT ERROR:", error);
+    res.status(400).json({ message: error.message || String(error) });
   }
 });
 
