@@ -43,15 +43,15 @@ router.get('/stats', auth, admin, async (req, res) => {
       lowStockItems,
       productsCount
     ] = await Promise.all([
-      Order.countDocuments({ created_at: { $gte: today }, payment_status: 'paid' }),
-      Order.countDocuments({ created_at: { $gte: weekAgo }, payment_status: 'paid' }),
-      Order.countDocuments({ created_at: { $gte: monthAgo }, payment_status: 'paid' }),
+      Order.countDocuments({ createdAt: { $gte: today }, paymentStatus: 'paid' }),
+      Order.countDocuments({ createdAt: { $gte: weekAgo }, paymentStatus: 'paid' }),
+      Order.countDocuments({ createdAt: { $gte: monthAgo }, paymentStatus: 'paid' }),
       Order.countDocuments(),
       Order.aggregate([
-        { $match: { payment_status: 'paid' } },
-        { $group: { _id: null, total: { $sum: '$total_paisa' } } }
+        { $match: { paymentStatus: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
       ]),
-      Order.countDocuments({ payment_status: 'paid', order_status: 'pending' }),
+      Order.countDocuments({ paymentStatus: 'paid', orderStatus: 'pending' }),
       School.countDocuments({ is_active: true }),
       ProductVariant.countDocuments({ stock_qty: { $lte: 5 }, is_available: true }),
       Product.countDocuments({ is_active: true })
@@ -240,18 +240,40 @@ router.get('/orders', auth, admin, async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const filter = {};
     if (status && status !== 'all') {
-      filter.order_status = status;
+      filter.orderStatus = status;
     }
     
-    const orders = await Order.find(filter)
-      .populate('user_id', 'name email phone')
+    const rawOrders = await Order.find(filter)
+      .populate('user', 'name email phone')
       .populate({
-        path: 'items.product_id',
+        path: 'items.product',
         select: 'name image_url'
       })
-      .sort({ created_at: -1 })
+      .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
+      
+    // Map to frontend expected schema
+    const orders = rawOrders.map(o => {
+      const obj = o.toObject();
+      return {
+        _id: obj._id,
+        created_at: obj.createdAt,
+        user_id: obj.user, // populate fills this
+        order_status: obj.orderStatus,
+        payment_status: obj.paymentStatus,
+        total_paisa: obj.totalAmount, 
+        tracking_number: obj.trackingNumber,
+        address: obj.shippingAddress ? `${obj.shippingAddress.street}, ${obj.shippingAddress.city}, ${obj.shippingAddress.state} - ${obj.shippingAddress.pincode}` : 'No Address',
+        items: obj.items.map(i => ({
+           product_id: i.product,
+           product_name_snapshot: i.itemName,
+           size_snapshot: i.size,
+           quantity: i.quantity,
+           price_paisa_snapshot: i.price_paisa
+        }))
+      };
+    });
     
     const total = await Order.countDocuments(filter);
     
@@ -273,37 +295,37 @@ router.patch('/orders/:id/status', auth, admin, async (req, res) => {
       return res.status(400).json({ message: 'Invalid status' });
     }
     
-    const updateData = { order_status };
+    const updateData = { orderStatus: order_status };
     if (order_status === 'shipped' && tracking_number) {
-      updateData.tracking_number = tracking_number;
+      updateData.trackingNumber = tracking_number;
     }
     
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { $set: updateData },
       { new: true }
-    ).populate('user_id', 'name email phone');
+    ).populate('user', 'name email phone');
     
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     // Send email to the customer since SchoolContact does not exist
-    if (order_status === 'confirmed' && order.user_id && order.user_id.email) {
+    if (order_status === 'confirmed' && order.user && order.user.email) {
       try {
         const itemsHtml = order.items.map(item => `
-          <p>${item.product_name_snapshot} - Size: ${item.size_snapshot} - Qty: ${item.quantity}</p>
+          <p>${item.itemName} - Size: ${item.size} - Qty: ${item.quantity}</p>
         `).join('');
         
         await sendEmail({
-          to: order.user_id.email,
+          to: order.user.email,
           subject: `Your Order is Confirmed - ${order._id}`,
           html: `
             <h2>Order Confirmed!</h2>
             <p>Order ID: ${order._id}</p>
-            <p>Customer: ${order.user_id.name}</p>
-            <p>Address: ${order.address}</p>
+            <p>Customer: ${order.user.name}</p>
+            <p>Address: ${order.shippingAddress ? order.shippingAddress.street : 'N/A'}</p>
             <h3>Items:</h3>
             ${itemsHtml}
-            <p>Total: ₹${order.total_paisa / 100}</p>
+            <p>Total: ₹${order.totalAmount / 100}</p>
           `
         });
       } catch (emailErr) {
@@ -311,7 +333,7 @@ router.patch('/orders/:id/status', auth, admin, async (req, res) => {
       }
     }
     
-    res.json(order);
+    res.json({ message: 'Success' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
