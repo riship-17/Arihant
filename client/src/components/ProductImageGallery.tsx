@@ -34,7 +34,8 @@ export default function ProductImageGallery({
 
   // If no gallery images, show single image or placeholder
   if (!images || images.length === 0) {
-    const singleUrl = primaryImage || fallbackUrl;
+    const singleUrl = primaryImage || fallbackUrl || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800";
+    
     if (singleUrl) {
       return (
         <div className="relative aspect-[4/5] bg-gradient-to-b from-gray-50 to-gray-100 overflow-hidden rounded-2xl group">
