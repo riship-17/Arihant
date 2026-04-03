@@ -112,34 +112,6 @@ router.get('/', auth, admin, async (req, res) => {
   }
 });
 
-// Update order status (Admin)
-router.put('/:id/status', auth, admin, async (req, res) => {
-  try {
-    const { orderStatus, trackingNumber } = req.body;
-    const validStatuses = ['pending', 'processing', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'];
-    if (!validStatuses.includes(orderStatus)) {
-      return res.status(400).json({ message: 'Invalid order status.' });
-    }
-    
-    let updateFields = { orderStatus };
-    if (orderStatus === 'shipped' && trackingNumber) {
-      updateFields.trackingNumber = trackingNumber;
-    }
-
-    const order = await Order.findByIdAndUpdate(req.params.id, updateFields, { new: true });
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    
-    // Trigger Status Update Email
-    const user = await User.findById(order.user);
-    if (user) {
-      await sendStatusUpdateEmail(order, user);
-    }
-    
-    res.json(order);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-});
 
 module.exports = router;
 

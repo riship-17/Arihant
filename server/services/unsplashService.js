@@ -15,10 +15,23 @@ const fetchImagesFromUnsplash = async (itemName, count = 4) => {
   }
 
   try {
-    const itemKey = itemName.toLowerCase().trim();
-    const query = queryMap[itemKey] || queryMap['default'];
+    const itemLower = itemName.toLowerCase();
+    
+    // Improved matching: search for the first key that appears in the item name
+    let query = queryMap['default'];
+    const keys = Object.keys(queryMap).filter(k => k !== 'default');
+    
+    // Sort keys by length descending to match more specific terms first (e.g. 'sports t-shirt' before 'shirt')
+    keys.sort((a, b) => b.length - a.length);
+    
+    for (const key of keys) {
+      if (itemLower.includes(key)) {
+        query = queryMap[key];
+        break;
+      }
+    }
 
-    console.log(`[Unsplash] Searching: "${query}" for item: "${itemName}"`);
+    console.log(`[Unsplash] Item: "${itemName}" -> Match: "${query}"`);
 
     const response = await axios.get('https://api.unsplash.com/search/photos', {
       params: {

@@ -48,7 +48,7 @@ router.get('/stats', auth, admin, async (req, res) => {
       Order.countDocuments({ createdAt: { $gte: monthAgo }, paymentStatus: 'paid' }),
       Order.countDocuments(),
       Order.aggregate([
-        { $match: { paymentStatus: 'paid' } },
+        { $match: { paymentStatus: { $in: ['paid', 'pending'] }, orderStatus: { $ne: 'cancelled' } } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } }
       ]),
       Order.countDocuments({ paymentStatus: 'paid', orderStatus: 'pending' }),
@@ -284,13 +284,14 @@ router.get('/orders', auth, admin, async (req, res) => {
 });
 
 // Update order status and tracking
-const { sendEmail } = require('../utils/email');
+const { sendStatusUpdateEmail } = require('../services/emailService');
+const User = require('../models/User');
 
 router.patch('/orders/:id/status', auth, admin, async (req, res) => {
   try {
     const { order_status, tracking_number } = req.body;
     
-    const validStatuses = ['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'];
+    const validStatuses = ['pending', 'processing', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'];
     if (!validStatuses.includes(order_status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }
@@ -308,32 +309,11 @@ router.patch('/orders/:id/status', auth, admin, async (req, res) => {
     
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Send email to the customer since SchoolContact does not exist
-    if (order_status === 'confirmed' && order.user && order.user.email) {
-      try {
-        const itemsHtml = order.items.map(item => `
-          <p>${item.itemName} - Size: ${item.size} - Qty: ${item.quantity}</p>
-        `).join('');
-        
-        await sendEmail({
-          to: order.user.email,
-          subject: `Your Order is Confirmed - ${order._id}`,
-          html: `
-            <h2>Order Confirmed!</h2>
-            <p>Order ID: ${order._id}</p>
-            <p>Customer: ${order.user.name}</p>
-            <p>Address: ${order.shippingAddress ? order.shippingAddress.street : 'N/A'}</p>
-            <h3>Items:</h3>
-            ${itemsHtml}
-            <p>Total: ₹${order.totalAmount / 100}</p>
-          `
-        });
-      } catch (emailErr) {
-        console.error("Failed to send order confirmation email:", emailErr);
-      }
+    if (user) {
+      await sendStatusUpdateEmail(order, user);
     }
     
-    res.json({ message: 'Success' });
+    res.json(order);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
