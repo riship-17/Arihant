@@ -20,23 +20,31 @@ const PORT = process.env.PORT || 5051;
 connectDB();
 
 // Middleware
-const allowedOrigins = [
-  'http://localhost:3000',
-  'https://arihant-seven.vercel.app',
-  process.env.FRONTEND_URL
-].filter(Boolean);
-
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+    
+    const allowedPatterns = [
+      /^https:\/\/arihant-.*\.vercel\.app$/,
+      /^http:\/\/localhost:\d+$/
+    ];
+    
+    const isAllowed = allowedPatterns.some(pattern => pattern.test(origin)) || 
+                     origin === process.env.FRONTEND_URL ||
+                     origin === 'https://arihant-seven.vercel.app';
+
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Blocked request from origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  maxAge: 86400 // Cache preflight for 24 hours
 }));
 app.use(express.json());
 
