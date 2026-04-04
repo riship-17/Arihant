@@ -7,6 +7,8 @@ const Product = require('../models/Product');
 const ProductVariant = require('../models/ProductVariant');
 const School = require('../models/School');
 const { auth, admin } = require('../middleware/auth');
+const { sendStatusUpdateEmail } = require('../services/emailService');
+const User = require('../models/User');
 const router = express.Router();
 
 // Multer cloudinary storage config
@@ -305,48 +307,70 @@ router.get('/orders', auth, admin, async (req, res) => {
 });
 
 // Update order status and tracking
-const { sendStatusUpdateEmail } = require('../services/emailService');
-const User = require('../models/User');
-
 router.patch('/orders/:id/status', auth, admin, async (req, res) => {
   try {
-    const { order_status, tracking_number } = req.body;
+    // Debug: log exact payload to see what frontend is sending
+    console.log('[DEBUG] Status Update req.body:', JSON.stringify(req.body));
+
+    // Fix 1: accept all possible field name formats from frontend
+    const order_status = req.body.order_status || req.body.orderStatus || req.body.status;
+    const tracking_number = req.body.tracking_number || req.body.trackingNumber;
+
     console.log(`[Admin] Updating order ${req.params.id} to status: ${order_status}`);
-    
+
+    if (!order_status) {
+      return res.status(400).json({ message: 'No status provided in request body' });
+    }
+
     const validStatuses = ['pending', 'processing', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'];
     if (!validStatuses.includes(order_status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+      return res.status(400).json({ 
+        message: `Invalid status "${order_status}". Must be one of: ${validStatuses.join(', ')}` 
+      });
     }
-    
+
     const updateData = { orderStatus: order_status };
+
+    // Fix 2: handle tracking number for shipped
     if (order_status === 'shipped' && tracking_number) {
       updateData.trackingNumber = tracking_number;
     }
-    
+
+    // Fix 3: mark payment as refund_pending when cancelled
+    if (order_status === 'cancelled') {
+      updateData.paymentStatus = 'refund_pending';
+    }
+
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { $set: updateData },
       { new: true }
     ).populate('user', 'name email phone');
-    
+
     if (!order) {
-      console.error(`[Admin] Order ${req.params.id} not found`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Wrap email in separate try-catch so it doesn't fail the whole request
+    // Fix 4: safely send email without crashing the response
     try {
-      if (order && order.user && order.user.email) {
-        console.log(`[Admin] Attempting to send status update email to ${order.user.email}`);
+      if (order.user?.email) {
+        console.log(`[Admin] Sending status email to ${order.user.email}`);
         await sendStatusUpdateEmail(order, order.user);
+        console.log(`[Admin] Email sent successfully`);
+      } else {
+        console.warn(`[Admin] No user email found on order ${req.params.id}`);
       }
     } catch (emailError) {
-      console.error('[Admin] Email service failed:', emailError.message);
-      // We don't return error here because the DB update was successful
+      console.error('[Admin] Email failed (non-fatal):', emailError.message);
     }
-    
-    console.log(`[Admin] Order ${req.params.id} updated successfully`);
-    res.json(order);
+
+    console.log(`[Admin] Order ${req.params.id} updated to "${order_status}" successfully`);
+    res.json({ 
+      success: true,
+      message: `Order status updated to ${order_status}`,
+      order 
+    });
+
   } catch (error) {
     console.error(`[Admin] Status update failed:`, error);
     res.status(500).json({ message: error.message || 'Internal server error' });
