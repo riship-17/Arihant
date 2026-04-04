@@ -20,33 +20,42 @@ const PORT = process.env.PORT || 5051;
 connectDB();
 
 // Middleware
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedPatterns = [
-      /^https:\/\/arihant-.*\.vercel\.app$/,
-      /^http:\/\/localhost:\d+$/
-    ];
-    
-    const isAllowed = allowedPatterns.some(pattern => pattern.test(origin)) || 
-                     origin === process.env.FRONTEND_URL ||
-                     origin === 'https://arihant-seven.vercel.app';
+app.use(express.json());
 
-    if (isAllowed || process.env.NODE_ENV !== 'production') {
+// 🟢 Robust CORS Configuration for Vercel/Production
+const whiteList = [
+  'http://localhost:3000',
+  'https://arihant-seven.vercel.app',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // 1. Allow non-browser requests (like mobile apps/Postman)
+    if (!origin) return callback(null, true);
+
+    // 2. Allow anything from Vercel subdomains + localhost
+    const isVercel = origin.endsWith('.vercel.app');
+    const isLocal = origin.startsWith('http://localhost:');
+    const isWhiteListed = whiteList.includes(origin);
+
+    if (isVercel || isLocal || isWhiteListed || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
-      console.warn(`[CORS] Blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`[CORS Blocked] Origin: ${origin}`);
+      callback(new Error('Cross-Origin Request Blocked'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   credentials: true,
-  maxAge: 86400 // Cache preflight for 24 hours
-}));
-app.use(express.json());
+  optionsSuccessStatus: 204
+};
+
+// Apply CORS globally
+app.use(cors(corsOptions));
+// Handle Preflight (OPTIONS) requests immediately
+app.options('*', cors(corsOptions));
 
 // API Routes
 app.use('/api/auth', authRoutes);
