@@ -49,9 +49,10 @@ export default function AdminOrders() {
       alert("Status updated successfully!");
       setSelectedOrder(null);
       fetchOrders();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to update status");
+    } catch (err: any) {
+      console.error("[Status Update Error]:", err);
+      const errorMsg = err.response?.data?.message || err.message || "Failed to update status";
+      alert(`Error! ${errorMsg}`);
     } finally {
       setUpdating(false);
     }

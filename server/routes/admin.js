@@ -311,6 +311,7 @@ const User = require('../models/User');
 router.patch('/orders/:id/status', auth, admin, async (req, res) => {
   try {
     const { order_status, tracking_number } = req.body;
+    console.log(`[Admin] Updating order ${req.params.id} to status: ${order_status}`);
     
     const validStatuses = ['pending', 'processing', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'];
     if (!validStatuses.includes(order_status)) {
@@ -328,15 +329,27 @@ router.patch('/orders/:id/status', auth, admin, async (req, res) => {
       { new: true }
     ).populate('user', 'name email phone');
     
-    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!order) {
+      console.error(`[Admin] Order ${req.params.id} not found`);
+      return res.status(404).json({ message: 'Order not found' });
+    }
 
-    if (order && order.user) {
-      await sendStatusUpdateEmail(order, order.user);
+    // Wrap email in separate try-catch so it doesn't fail the whole request
+    try {
+      if (order && order.user && order.user.email) {
+        console.log(`[Admin] Attempting to send status update email to ${order.user.email}`);
+        await sendStatusUpdateEmail(order, order.user);
+      }
+    } catch (emailError) {
+      console.error('[Admin] Email service failed:', emailError.message);
+      // We don't return error here because the DB update was successful
     }
     
+    console.log(`[Admin] Order ${req.params.id} updated successfully`);
     res.json(order);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(`[Admin] Status update failed:`, error);
+    res.status(500).json({ message: error.message || 'Internal server error' });
   }
 });
 
