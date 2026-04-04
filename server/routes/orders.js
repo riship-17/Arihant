@@ -3,7 +3,7 @@ const Order = require('../models/Order');
 const { auth, admin } = require('../middleware/auth');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
-const { createRazorpayOrder, verifyPayment } = require('../controllers/orderController');
+const { createRazorpayOrder, verifyPayment, getUserOrders, getOrderDetail } = require('../controllers/orderController');
 const { sendStatusUpdateEmail } = require('../services/emailService');
 const User = require('../models/User');
 
