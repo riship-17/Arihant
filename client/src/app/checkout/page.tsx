@@ -62,7 +62,7 @@ export default function CheckoutPage() {
         const res = await api.post('/orders', { orderData });
         const order = res.data;
         clearCart();
-        router.push(`/order-success?id=${order._id}`);
+        router.push(`/account/orders/${order._id}`);
         return;
       }
 
@@ -92,7 +92,7 @@ export default function CheckoutPage() {
             });
             const successData = verifyRes.data;
             clearCart();
-            router.push(`/order-success?id=${successData.orderId}`);
+            router.push(`/account/orders/${successData.orderId}`);
           } catch (err: any) {
             console.error("Payment verification failed:", err);
             const errorMsg = err.response?.data?.message || err.message || "Payment verification failed.";

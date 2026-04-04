@@ -122,7 +122,52 @@ const verifyPayment = async (req, res) => {
   }
 };
 
+const getOrderDetail = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate({
+        path: 'items.product',
+        select: 'name image_url price_paisa item_type'
+      })
+      .populate('school', 'name')
+      .populate('standard', 'class_name gender');
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    // Verify ownership
+    if (order.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied. This order does not belong to you.' });
+    }
+
+    res.status(200).json(order);
+  } catch (error) {
+    console.error('Get Order Detail Error:', error);
+    res.status(500).json({ message: 'Failed to fetch order details.' });
+  }
+};
+
+const getUserOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ user: req.user.id })
+      .populate({
+        path: 'items.product',
+        select: 'name image_url'
+      })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(orders);
+  } catch (error) {
+    console.error('Get User Orders Error:', error);
+    res.status(500).json({ message: 'Failed to fetch your orders.' });
+  }
+};
+
 module.exports = {
   createRazorpayOrder,
-  verifyPayment
+  verifyPayment,
+  getOrderDetail,
+  getUserOrders
 };
+

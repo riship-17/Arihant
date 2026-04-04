@@ -6,6 +6,7 @@ import { ShoppingCart, User, Menu, LogOut, Package, X, Home, BookOpen, School } 
 import { useCart } from "@/context/CartContext";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter, usePathname } from "next/navigation";
+import api from "@/lib/api";
 
 export default function Navbar() {
   const { totalItems, isHydrated: cartHydrated } = useCart();
@@ -13,10 +14,23 @@ export default function Navbar() {
   const { clearCart } = useCart();
   const [isHydrated, setIsHydrated] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeOrderCount, setActiveOrderCount] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => { setIsHydrated(true); }, []);
+
+  // Fetch active order count for badge
+  useEffect(() => {
+    if (isAuthenticated && cartHydrated) {
+      api.get("/orders/my-orders").then(res => {
+        const active = res.data.filter((o: any) => 
+          ['processing', 'confirmed', 'packed', 'shipped'].includes(o.orderStatus)
+        ).length;
+        setActiveOrderCount(active);
+      }).catch(() => {});
+    }
+  }, [isAuthenticated, cartHydrated, pathname]);
 
   // Close mobile drawer on route change
   useEffect(() => { setMobileOpen(false); }, [pathname]);
@@ -77,8 +91,13 @@ export default function Navbar() {
                       Admin
                     </Link>
                   )}
-                  <Link href="/orders" className="text-sm font-medium text-brand-secondary hover:text-brand-primary flex items-center gap-1">
+                  <Link href="/account/orders" className="text-sm font-medium text-brand-secondary hover:text-brand-primary flex items-center gap-1 relative">
                     <Package size={16} /> Orders
+                    {activeOrderCount > 0 && (
+                      <span className="absolute -top-2 -right-2 bg-brand-primary text-white text-[8px] h-4 w-4 rounded-full flex items-center justify-center font-bold ring-2 ring-brand-bg">
+                        {activeOrderCount}
+                      </span>
+                    )}
                   </Link>
                   <button onClick={handleLogout} className="text-sm font-medium text-red-500 hover:text-red-700 flex items-center gap-1">
                     <LogOut size={16} /> Logout
@@ -188,8 +207,13 @@ export default function Navbar() {
                   Admin Dashboard
                 </Link>
               )}
-              <Link href="/orders" className="flex items-center gap-2 px-4 py-3 rounded-xl text-brand-secondary hover:bg-gray-50 font-medium">
+              <Link href="/account/orders" className="flex items-center gap-2 px-4 py-3 rounded-xl text-brand-secondary hover:bg-gray-50 font-medium relative">
                 <Package size={18} /> My Orders
+                {activeOrderCount > 0 && (
+                  <span className="ml-auto bg-brand-primary text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                    {activeOrderCount} active
+                  </span>
+                )}
               </Link>
               <button
                 onClick={handleLogout}

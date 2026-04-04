@@ -89,16 +89,11 @@ router.post('/create-razorpay-order', auth, createRazorpayOrder);
 // POST /api/orders/verify-payment
 router.post('/verify-payment', auth, orderRules, validate, verifyPayment);
 
-// Get user orders
-router.get('/my-orders', auth, async (req, res) => {
-  try {
-    const orders = await Order.find({ user: req.user.id })
-      .sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+// Get user orders (List)
+router.get('/my-orders', auth, getUserOrders);
+
+// Get specific order detail (ID)
+router.get('/my-orders/:id', auth, getOrderDetail);
 
 // Get all orders (Admin)
 router.get('/', auth, admin, async (req, res) => {
