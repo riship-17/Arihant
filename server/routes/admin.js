@@ -330,8 +330,8 @@ router.patch('/orders/:id/status', auth, admin, async (req, res) => {
     
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    if (user) {
-      await sendStatusUpdateEmail(order, user);
+    if (order && order.user) {
+      await sendStatusUpdateEmail(order, order.user);
     }
     
     res.json(order);
